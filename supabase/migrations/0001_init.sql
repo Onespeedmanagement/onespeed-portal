@@ -119,7 +119,8 @@ create table pos_daily (
   profit        numeric(12,2),
   profit_pct    numeric(6,2),               -- exactly as the POS reports it
   card_sales    numeric(12,2),
-  cash_sales    numeric(12,2),
+  cash_sales    numeric(12,2),             -- POS "Net Cash-Flow": all cash taken in, used for the close-out
+  non_revenue   numeric(12,2),
   transactions  int,
   file_id       uuid references pos_files(id),
   updated_at    timestamptz not null default now(),
@@ -350,7 +351,8 @@ create policy coe_manager_add on closeout_employees for insert
                       and is_manager_of(c.business_id) and c.business_date = manager_open_date(c.business_id)));
 create policy co_bookkeeper on closeouts for select using (is_bookkeeper());
 create policy co_investor   on closeouts for select using (investor_can(business_id, 'cash') or investor_can(business_id, 'owners'));
--- bookkeeper never reads closeout_employees (no employee names)
+create policy coe_bookkeeper on closeout_employees for select using (is_bookkeeper());
+create policy emp_bookkeeper on employees for select using (is_bookkeeper());
 
 create policy settings_read on settings for select using (my_role() is not null);
 

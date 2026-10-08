@@ -25,8 +25,9 @@ export type CashSalesSummary = {
   taxes: number;
   netSales: number;
   cardTotal: number;
-  cashWithoutNonRevenue: number;     // cash sales used for the close-out (matches card + cash = sales)
-  cashTendered: number;              // all cash taken in, including non-revenue
+  netCashFlow: number;               // CASH-FLOW ANALYSIS → Net Cash-Flow: the cash the drawer must match
+  cashWithoutNonRevenue: number;
+  cashTendered: number;
   transactions: number;
   averageSale: number;
   voidCount: number;
@@ -139,6 +140,7 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
     taxes: labelled(rows, /^Taxes/i),
     netSales: labelled(rows, /Net Sales/i),
     cardTotal: labelled(rows, /Credit & Debit Card Total/i),
+    netCashFlow: labelled(rows, /Net Cash-Flow/i, 'right'),
     cashWithoutNonRevenue: labelled(rows, /Total Cash Amount/i),
     cashTendered: tenders.find(t => /^cash$/i.test(t.type))?.amount ?? 0,
     transactions: labelled(rows, /Customer\(Transaction\) Count/i),
@@ -157,7 +159,8 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
   s.checks = [
     { name: 'Tenders add up to amount received', ok: near(tenderSum, s.grossReceived), detail: `${tenderSum} vs ${s.grossReceived}` },
     { name: 'Card types add up to card total', ok: near(cardSum, s.cardTotal), detail: `${cardSum} vs ${s.cardTotal}` },
-    { name: 'Card + cash = net sales', ok: near(s.cardTotal + s.cashWithoutNonRevenue, s.netSales), detail: `${cents(s.cardTotal + s.cashWithoutNonRevenue)} vs ${s.netSales}` },
+    { name: 'Card + cash-flow = amount received', ok: near(s.cardTotal + s.netCashFlow, s.grossReceived), detail: `${cents(s.cardTotal + s.netCashFlow)} vs ${s.grossReceived}` },
+    { name: 'Cash-flow matches cash tendered', ok: near(s.netCashFlow, s.cashTendered), detail: `${s.netCashFlow} vs ${s.cashTendered}` },
     { name: 'Departments add up to department total', ok: near(deptSum, departmentTotals.sales), detail: `${deptSum} vs ${departmentTotals.sales}` },
     { name: 'Department total matches net sales', ok: near(departmentTotals.sales, s.netSales), detail: `${departmentTotals.sales} vs ${s.netSales}` },
     { name: 'Found at least one department', ok: departments.length > 0, detail: `${departments.length} departments` },
