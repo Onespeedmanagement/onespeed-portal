@@ -27,7 +27,10 @@ export default async function PortfolioPage() {
             <div className="eyebrow">Your portfolio</div>
             <h1>Choose a business</h1>
           </div>
-          <a className="btn secondary" href="/admin/upload" style={{ textDecoration: 'none' }}>Upload POS reports</a>
+          <div className="row">
+            <a className="btn secondary" href="/admin/stores" style={{ textDecoration: 'none' }}>Stores &amp; locations</a>
+            <a className="btn secondary" href="/admin/upload" style={{ textDecoration: 'none' }}>Upload POS reports</a>
+          </div>
         </div>
         <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', alignItems: 'start' }}>
           {(portfolios ?? []).map((p) => {
