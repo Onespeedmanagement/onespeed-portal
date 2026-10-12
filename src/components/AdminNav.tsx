@@ -1,8 +1,12 @@
 const LINKS = [
   ['/portfolio', 'Portfolio'],
+  ['/dashboard', 'Dashboard'],
+  ['/daily', 'Daily view'],
+  ['/owners', 'Owners Report'],
   ['/cash', 'Cash & deposits'],
   ['/discrepancies', 'Discrepancies'],
   ['/admin/upload', 'Upload POS reports'],
+  ['/admin/users', 'Users & employees'],
   ['/admin/stores', 'Stores'],
 ] as const;
 

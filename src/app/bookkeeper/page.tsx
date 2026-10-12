@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
+import { BookkeeperNav } from '@/components/BookkeeperNav';
 import { HolidayTag } from '@/components/HolidayTag';
 import { money, signedMoney } from '@/lib/format';
 import { addDays, shortDate, todayNY } from '@/lib/dates';
@@ -33,6 +34,7 @@ export default async function BookkeeperPage({ searchParams }: { searchParams: P
   return (
     <>
       <TopBar subtitle="Bookkeeping" who={`${me.email} · Bookkeeper`} />
+      <BookkeeperNav active="/bookkeeper" />
       <main className="page" style={{ maxWidth: 1360 }}>
         <div className="row between">
           <div>
@@ -93,7 +95,7 @@ export default async function BookkeeperPage({ searchParams }: { searchParams: P
             </table>
           )}
         </section>
-        <p className="small muted">View only: these numbers come from the POS and the manager&apos;s close-out. Owners Report entry (QB balance, distributor checks) is coming next.</p>
+        <p className="small muted">View only: these numbers come from the POS and the manager&apos;s close-out. Enter QB balances and checks under Owners Report.</p>
       </main>
     </>
   );
