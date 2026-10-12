@@ -20,6 +20,10 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
   const from = addDays(to, -(days - 1));
   const tolerance = await getTolerance(supabase);
   const rows = store ? await loadDays(supabase, store.id, from, to, tolerance) : [];
+  const { data: marks } = store
+    ? await supabase.from('qb_marks').select('business_date, entered, marked_by').eq('business_id', store.id).gte('business_date', from).lte('business_date', to)
+    : { data: [] };
+  const qb = (d: string) => marks?.find((m) => m.business_date === d && m.entered);
 
   const closed = rows.filter((r) => r.closeout && r.closeout.difference != null);
   const shorts = closed.filter((r) => r.status === 'short');
@@ -70,7 +74,7 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
           <h2 style={{ marginBottom: 10 }}>Daily cash log · {store?.name}</h2>
           {rows.length === 0 ? <p className="muted">No POS reports or close-outs in this range yet.</p> : (
             <table className="num" style={{ minWidth: 1100 }}>
-              <thead><tr><th>Date</th><th className="r">Card (POS)</th><th className="r">Cash (POS)</th><th className="r">Total sales</th><th className="r">Cash counted</th><th className="r">Paid out / petty</th><th className="r">Difference</th><th>Status</th><th>Who / note</th><th className="r">Deposit</th></tr></thead>
+              <thead><tr><th>Date</th><th className="r">Card (POS)</th><th className="r">Cash (POS)</th><th className="r">Total sales</th><th className="r">Cash counted</th><th className="r">Paid out / petty</th><th className="r">Difference</th><th>Status</th><th>Who / note</th><th className="r">Deposit</th><th>QuickBooks</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.date}>
@@ -91,6 +95,7 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
                       {r.closeout?.note ? <div className="muted">“{r.closeout.note}”</div> : null}
                       {r.closeout ? <div className="muted">by {r.closeout.submitted_by}</div> : null}</td>
                     <td className="r">{r.closeout ? money(r.closeout.deposit_amount) : '—'}</td>
+                    <td>{qb(r.date) ? <span className="pill good">✓ Entered</span> : <span className="small muted">Not yet</span>}</td>
                   </tr>
                 ))}
               </tbody>
