@@ -44,7 +44,8 @@ export async function submitCloseout(_prev: FormState, form: FormData): Promise<
     paid_out_reason: reason, petty_change: petty, held_for_next: held, note, submitted_by: me.email,
   }).select('id').single();
   if (error) {
-    if (error.code === '23505') return { error: 'Today’s close-out was already submitted. Ask an admin if it needs a change.' };
+    if (error.code === '23505') return { error: 'This day’s close-out was already submitted. Ask an admin if it needs a change.' };
+    if (error.code === '42501') return { error: 'This day is closed. Ask an admin to enter it.' };
     return { error: 'Couldn’t save the close-out. Please try again.' };
   }
   if (employeeIds.length) {

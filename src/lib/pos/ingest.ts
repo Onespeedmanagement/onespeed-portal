@@ -12,8 +12,11 @@ export type IngestResult = {
 
 // Reads one POS PDF and saves it, but only if it passes every check.
 // The same file twice is ignored; a file that doesn't add up is held for an admin.
+// `restrictTo` (manager uploads): the file must be for this store and this date,
+// and nothing is written unless it is.
 export async function ingestPosPdf(
   supabase: SupabaseClient, bytes: Uint8Array, filename: string, source: 'email' | 'upload',
+  restrictTo?: { businessId: string; businessDate: string; storeName: string },
 ): Promise<IngestResult> {
   const sha256 = createHash('sha256').update(bytes).digest('hex');
 
@@ -25,13 +28,22 @@ export async function ingestPosPdf(
     parsed = await parseCashSalesSummary(bytes);
   } catch (e) {
     const message = `Couldn't read this file: ${(e as Error).message}`;
-    await supabase.from('pos_files').insert({ filename, sha256, source, status: 'error', message });
+    if (!restrictTo) await supabase.from('pos_files').insert({ filename, sha256, source, status: 'error', message });
     return { filename, status: 'error', message };
+  }
+
+  if (restrictTo && parsed.businessDate !== restrictTo.businessDate) {
+    return { filename, status: 'error', businessDate: parsed.businessDate,
+      message: `This report is for ${parsed.businessDate}, but you're closing out ${restrictTo.businessDate}. Pick that day's report, or switch days above.` };
   }
 
   const { data: businesses } = await supabase.from('businesses').select('id, name, pos_match').eq('active', true);
   const store = (businesses ?? []).find((b) =>
     b.pos_match && parsed.storeName.toLowerCase().includes(String(b.pos_match).toLowerCase()));
+  if (restrictTo && store?.id !== restrictTo.businessId) {
+    return { filename, status: 'error', store: parsed.storeName,
+      message: `This report is for "${parsed.storeName}", not ${restrictTo.storeName}.` };
+  }
   if (!store) {
     const message = `No store matches "${parsed.storeName}". An admin needs to assign it.`;
     await supabase.from('pos_files').insert({ filename, sha256, source, status: 'unknown_store', business_date: parsed.businessDate, message });
