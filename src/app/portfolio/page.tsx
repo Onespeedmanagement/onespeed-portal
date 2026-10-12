@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
+import { AdminNav } from '@/components/AdminNav';
 import { longDate, money } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,7 @@ export default async function PortfolioPage() {
   return (
     <>
       <TopBar subtitle="Management Portal" who={`${me.email} · Admin`} />
+      <AdminNav active="/portfolio" />
       <main className="page" style={{ maxWidth: 1300 }}>
         <div className="row between">
           <div>

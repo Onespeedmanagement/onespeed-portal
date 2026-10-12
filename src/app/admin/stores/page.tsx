@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
+import { AdminNav } from '@/components/AdminNav';
 import { StoresEditor } from './StoresEditor';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,7 @@ export default async function StoresPage() {
   return (
     <>
       <TopBar subtitle="Stores & locations" who={`${me.email} · Admin`} />
+      <AdminNav active="/admin/stores" />
       <main className="page">
         <div>
           <a href="/portfolio" className="small">← Portfolio</a>
