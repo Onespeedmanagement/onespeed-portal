@@ -79,7 +79,7 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
     const parts = [delta('sales', b?.total_sales, a?.total_sales), delta('cash', b?.cash_sales, a?.cash_sales), delta('card', b?.card_sales, a?.card_sales)].filter(Boolean);
     items.push({ key: `x${c.id}`, kind: 'changed', businessId: c.business_id, store: storeName(c.business_id), date: c.business_date, ref: c.id,
       title: parts.length ? parts.join(' · ') : 'Report replaced (same totals)',
-      detail: 'The bookkeeper uploaded a new POS report for this day, replacing the earlier one.',
+      detail: (a as { reason?: string } | null)?.reason ? `Typed in by hand. Reason: “${(a as { reason?: string }).reason}”` : 'The bookkeeper uploaded a new POS report for this day, replacing the earlier one.',
       meta: `Changed by ${c.changed_by} · ${new Date(c.changed_at).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` });
   }
   const closedSet = new Set((cos ?? []).map((c) => `${c.business_id}|${c.business_date}`));
