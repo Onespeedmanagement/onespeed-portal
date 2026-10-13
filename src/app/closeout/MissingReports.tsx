@@ -18,20 +18,23 @@ export function MissingReports({ days, businessId }: { days: { business_date: st
         <span className={`pill ${missing.length ? 'warn' : 'good'}`}>{missing.length ? `${missing.length} missing` : '✓ All in'}</span>
       </div>
       <div className="row" style={{ gap: 6 }}>
-        {days.map((d) => (
-          <span key={d.business_date} className={`pill ${d.has_report ? 'good' : 'warn'}`} style={{ fontSize: 12, padding: '4px 10px' }}>
-            {short(d.business_date)} {d.has_report ? '✓' : '· missing'}
-          </span>
+        {days.map((d) => d.has_report ? (
+          <span key={d.business_date} className="pill good" style={{ fontSize: 12, padding: '4px 10px' }}>{short(d.business_date)} ✓</span>
+        ) : (
+          // Clicking a missing day opens the file chooser; the day is read from inside the PDF
+          <label key={d.business_date} htmlFor="missing-files" className="pill warn" style={{ fontSize: 12, padding: '4px 10px', cursor: 'pointer', textDecoration: 'underline' }}>
+            {short(d.business_date)} · upload
+          </label>
         ))}
       </div>
       {missing.length > 0 && (
         <form action={action} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input type="hidden" name="business_id" value={businessId} />
           <div className="row">
-            <input name="files" type="file" accept="application/pdf,.pdf" multiple aria-label="POS report PDFs" style={{ flex: '1 1 240px' }} />
+            <input id="missing-files" name="files" type="file" accept="application/pdf,.pdf" multiple aria-label="POS report PDFs" style={{ flex: '1 1 240px' }} />
             <button className="btn secondary" type="submit" disabled={pending}>{pending ? 'Checking…' : 'Upload'}</button>
           </div>
-          <span className="small muted">Select all the missing days&apos; “Cash and Sales Summary” PDFs at once. Each day can be uploaded once; days already in are skipped. This is sales only. Cash close-outs are still done one day at a time above.</span>
+          <span className="small muted">Tap a missing day (or Choose files) and pick that day&apos;s “Cash and Sales Summary” PDF. You can pick several days&apos; PDFs at once. The portal reads the date from inside each PDF, so file names don&apos;t matter. Each day can be uploaded once; days already in are skipped. This is sales only. Cash close-outs are still done one day at a time above.</span>
         </form>
       )}
       {results.length > 0 && (
