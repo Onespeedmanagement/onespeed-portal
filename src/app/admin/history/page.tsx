@@ -4,6 +4,7 @@ import { TopBar } from '@/components/TopBar';
 import { AdminNav } from '@/components/AdminNav';
 import { todayNY } from '@/lib/dates';
 import { HistoryForm } from './HistoryForm';
+import { MonthForm } from './MonthForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,7 @@ export default async function HistoryPage() {
           <span className="small muted">Monthly revenue, customers and profit % per store. The dashboard uses these for any month the nightly POS reports don&apos;t fully cover; once a whole month of POS reports is in, those take over.</span>
         </div>
         <HistoryForm thisYear={Number(todayNY().slice(0, 4))} />
+        <MonthForm stores={stores ?? []} />
         <section className="card scroll">
           <h2>Loaded so far</h2>
           {months.length === 0 ? <p className="muted">Nothing loaded yet.</p> : (
