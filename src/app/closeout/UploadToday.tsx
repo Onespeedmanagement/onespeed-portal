@@ -3,7 +3,7 @@ import { useActionState } from 'react';
 import { uploadTodaysReport } from './uploadAction';
 import type { IngestResult } from '@/lib/pos/ingest';
 
-export function UploadToday({ hasReport, businessDate, label }: { hasReport: boolean; businessDate: string; label: string }) {
+export function UploadToday({ businessId, hasReport, businessDate, label }: { businessId: string; hasReport: boolean; businessDate: string; label: string }) {
   const [result, action, pending] = useActionState<IngestResult | null, FormData>(uploadTodaysReport, null);
   if (hasReport) {
     return <div className="notice good">✓ POS report for {label} is in. Each day is uploaded once; ask an admin if it needs replacing.</div>;
@@ -15,6 +15,7 @@ export function UploadToday({ hasReport, businessDate, label }: { hasReport: boo
         <span className="small muted">Your store only</span>
       </div>
       <input type="hidden" name="business_date" value={businessDate} />
+      <input type="hidden" name="business_id" value={businessId} />
       <div className="row">
         <input name="file" type="file" accept="application/pdf,.pdf" aria-label="POS report PDF" style={{ flex: '1 1 240px' }} />
         <button className="btn secondary" type="submit" disabled={pending}>{pending ? 'Checking…' : 'Upload'}</button>

@@ -9,19 +9,32 @@ import { MissingReports } from './MissingReports';
 
 export const dynamic = 'force-dynamic';
 
+// Shown only to someone who manages more than one store (e.g. a territory manager)
+function StorePicker({ stores, current }: { stores: { id: string; name: string }[]; current: string }) {
+  if (stores.length < 2) return null;
+  return (
+    <nav aria-label="Store" className="row" style={{ gap: 8 }}>
+      {stores.map((s) => (
+        <a key={s.id} href={`/closeout?store=${s.id}`} className={`pill ${s.id === current ? 'good' : ''}`}
+           style={{ textDecoration: 'none', border: s.id === current ? '2px solid var(--green)' : '1px solid var(--line)', padding: '8px 14px' }}>{s.name}</a>
+      ))}
+    </nav>
+  );
+}
+
 const shortDate = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 };
 
 // Store manager screen: their store; yesterday's close-out, plus catch-up days not yet submitted.
-export default async function CloseoutPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
-  const { date: wanted } = await searchParams;
+export default async function CloseoutPage({ searchParams }: { searchParams: Promise<{ date?: string; store?: string }> }) {
+  const { date: wanted, store: wantedStore } = await searchParams;
   const me = await requireRole('manager');
   const supabase = await supabaseServer();
 
   const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
-  const store = stores?.[0];
+  const store = stores?.find((s) => s.id === wantedStore) ?? stores?.[0];
   if (!store) {
     return (<><TopBar who={me.email} /><main className="page"><div className="notice warn">You aren&apos;t assigned to a store yet. Ask an admin.</div></main></>);
   }
@@ -40,7 +53,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
   const yesterday = openDates[openDates.length - 1];
   const day = wanted && openDates.includes(wanted) ? wanted : (pending[0] ?? yesterday);
   if (!day) {
-    return (<><TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><main className="page" style={{ maxWidth: 880 }}><div className="notice good">You&apos;re all caught up.</div>{daysList.length > 0 && <MissingReports days={daysList} />}</main></>);
+    return (<><TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><main className="page" style={{ maxWidth: 880 }}><div className="notice good">You&apos;re all caught up.</div><StorePicker stores={stores ?? []} current={store.id} />{daysList.length > 0 && <MissingReports days={daysList} businessId={store.id} />}</main></>);
   }
 
   const [{ data: pos }, { data: done }, { data: employees }, { data: tol }] = await Promise.all([
@@ -51,11 +64,13 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
     supabase.from('settings').select('value').eq('key', 'match_tolerance').maybeSingle(),
   ]);
   const tolerance = Number(tol?.value ?? 1);
+  const q = (d: string) => `/closeout?store=${store.id}&date=${d}`;
 
   return (
     <>
       <TopBar subtitle={store.name} who={`${me.email} · Store manager`} />
       <main className="page" style={{ maxWidth: 880 }}>
+        <StorePicker stores={stores ?? []} current={store.id} />
         <div>
           <div className="eyebrow">{day === yesterday ? 'Yesterday\u2019s close-out' : 'Catch-up close-out'}</div>
           <h1>{longDate(day)}</h1>
@@ -65,7 +80,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
         {pending.length > 0 && (
           <nav aria-label="Days to close out" className="row">
             {openDates.map((d) => (
-              <a key={d} href={`/closeout?date=${d}`} className={`pill ${d === day ? 'good' : submitted.has(d) ? '' : 'warn'}`}
+              <a key={d} href={q(d)} className={`pill ${d === day ? 'good' : submitted.has(d) ? '' : 'warn'}`}
                  style={{ textDecoration: 'none', border: d === day ? '2px solid var(--green)' : '1px solid var(--line)', padding: '8px 14px' }}>
                 {shortDate(d)}{submitted.has(d) ? ' · done' : ' · to do'}
               </a>
@@ -78,7 +93,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
           <div className="stat"><span className="small muted">Card · from POS</span><strong>{pos ? money(pos.card_sales) : 'Not in yet'}</strong></div>
         </div>
 
-        {!done && <UploadToday hasReport={!!pos} businessDate={day} label={shortDate(day)} />}
+        {!done && <UploadToday businessId={store.id} hasReport={!!pos} businessDate={day} label={shortDate(day)} />}
 
         {done ? (
           <section className="card num" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -102,7 +117,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
             tolerance={tolerance} employees={employees ?? []} />
         )}
 
-        {daysList.length > 0 && <MissingReports days={daysList} />}
+        {daysList.length > 0 && <MissingReports days={daysList} businessId={store.id} />}
 
         <EmployeeManager businessId={store.id} employees={employees ?? []} />
       </main>

@@ -7,10 +7,11 @@ import { ingestPosPdf, type IngestResult } from '@/lib/pos/ingest';
 type Supa = Awaited<ReturnType<typeof supabaseServer>>;
 
 // The manager's store and which days (start date → yesterday) already have a report.
-// Store and dates come from the server, never from the form.
-async function context(supabase: Supa) {
+// The store must be one this manager is assigned to (only those are visible to them);
+// dates come from the server, never from the form.
+async function context(supabase: Supa, wanted: FormDataEntryValue | null) {
   const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
-  const store = stores?.[0];
+  const store = stores?.find((s) => s.id === String(wanted ?? '')) ?? (stores?.length === 1 ? stores[0] : undefined);
   if (!store) return null;
   const { data } = await supabase.rpc('manager_report_days', { b: store.id });
   const days = (data ?? []) as { business_date: string; has_report: boolean }[];
@@ -31,7 +32,7 @@ export async function uploadTodaysReport(_prev: IngestResult | null, form: FormD
   if (!pdfOnly(file)) return { filename: file.name, status: 'error', message: 'Upload the POS “Cash and Sales Summary” PDF.' };
 
   const supabase = await supabaseServer();
-  const ctx = await context(supabase);
+  const ctx = await context(supabase, form.get('business_id'));
   if (!ctx) return { filename: file.name, status: 'error', message: 'You aren’t assigned to a store.' };
   const { data: openRows } = await supabase.rpc('manager_open_dates', { b: ctx.store.id });
   const openDates = ((openRows ?? []) as unknown[]).map((r) => String(typeof r === 'object' && r ? Object.values(r)[0] : r));
@@ -52,7 +53,7 @@ export async function uploadMissingReports(_prev: IngestResult[], form: FormData
   if (files.length > 40) return [{ filename: '', status: 'error', message: 'Upload at most 40 files at a time.' }];
 
   const supabase = await supabaseServer();
-  const ctx = await context(supabase);
+  const ctx = await context(supabase, form.get('business_id'));
   if (!ctx) return [{ filename: '', status: 'error', message: 'You aren’t assigned to a store.' }];
 
   const results: IngestResult[] = [];

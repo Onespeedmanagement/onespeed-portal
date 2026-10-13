@@ -8,7 +8,7 @@ const PILL: Record<IngestResult['status'], [string, string]> = {
   processed: ['good', '✓ Saved'], duplicate: ['warn', 'Already in'], held: ['bad', 'Held for admin'], unknown_store: ['bad', 'Wrong store'], error: ['bad', 'Not saved'],
 };
 
-export function MissingReports({ days }: { days: { business_date: string; has_report: boolean }[] }) {
+export function MissingReports({ days, businessId }: { days: { business_date: string; has_report: boolean }[]; businessId: string }) {
   const [results, action, pending] = useActionState<IngestResult[], FormData>(uploadMissingReports, []);
   const missing = days.filter((d) => !d.has_report);
   return (
@@ -26,6 +26,7 @@ export function MissingReports({ days }: { days: { business_date: string; has_re
       </div>
       {missing.length > 0 && (
         <form action={action} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input type="hidden" name="business_id" value={businessId} />
           <div className="row">
             <input name="files" type="file" accept="application/pdf,.pdf" multiple aria-label="POS report PDFs" style={{ flex: '1 1 240px' }} />
             <button className="btn secondary" type="submit" disabled={pending}>{pending ? 'Checking…' : 'Upload'}</button>
