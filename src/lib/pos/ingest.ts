@@ -19,12 +19,13 @@ const niceDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateStrin
 export async function ingestPosPdf(
   supabase: SupabaseClient, bytes: Uint8Array, filename: string, source: 'email' | 'upload',
   restrictTo?: Restrict,
-  opts: { noReplace?: boolean } = {},   // bookkeeper: add missing days only, never replace one
+  opts: { noReplace?: boolean; override?: string } = {},   // noReplace: add missing days only. override: who saves a report that doesn't add up
 ): Promise<IngestResult> {
   const sha256 = createHash('sha256').update(bytes).digest('hex');
 
-  const { data: existing } = await supabase.from('pos_files').select('id').eq('sha256', sha256).maybeSingle();
-  if (existing) return { filename, status: 'duplicate', message: 'Already received. Ignored.' };
+  const { data: existing } = await supabase.from('pos_files').select('id, status').eq('sha256', sha256).maybeSingle();
+  // A report held earlier may be saved anyway; anything else seen before is ignored
+  if (existing && !(opts.override && existing.status === 'held')) return { filename, status: 'duplicate', message: 'Already received. Ignored.' };
 
   let parsed;
   try {
@@ -67,16 +68,18 @@ export async function ingestPosPdf(
   }
 
   const failed = parsed.checks.filter((c) => !c.ok);
-  if (failed.length) {
-    const message = `Held: ${failed.map((c) => `${c.name} (${c.detail})`).join('; ')}`;
+  const overrideNote = failed.length && opts.override ? `Saved anyway by ${opts.override}: ${failed.map((c) => `${c.name} (${c.detail})`).join('; ')}` : null;
+  if (failed.length && !opts.override) {
+    const message = `Held, the report's own totals don't add up: ${failed.map((c) => `${c.name} (${c.detail})`).join('; ')}. If the printout looks right, upload it again with "Save even if…" ticked.`;
     await supabase.from('pos_files').insert({ filename, sha256, source, status: 'held', business_id: store.id, business_date: parsed.businessDate, message });
     return { filename, status: 'held', store: store.name, businessDate: parsed.businessDate, message };
   }
 
-  const { data: file, error: fileErr } = await supabase.from('pos_files').insert({
-    filename, sha256, source, status: 'processed', business_id: store.id, business_date: parsed.businessDate,
-    message: 'All checks passed',
-  }).select('id').single();
+  const fileRow = { filename, sha256, source, status: 'processed', business_id: store.id, business_date: parsed.businessDate,
+    message: overrideNote ?? 'All checks passed' };
+  const { data: file, error: fileErr } = existing
+    ? await supabase.from('pos_files').update(fileRow).eq('id', existing.id).select('id').single()
+    : await supabase.from('pos_files').insert(fileRow).select('id').single();
   if (fileErr) return { filename, status: 'error', message: 'Couldn’t save the file record.' };
 
   const t = parsed.departmentTotals;
@@ -92,6 +95,8 @@ export async function ingestPosPdf(
     non_revenue: parsed.nonRevenue,
     transactions: parsed.transactions,
     file_id: file.id,
+    override_note: overrideNote,
+    override_by: overrideNote ? opts.override : null,
     updated_at: new Date().toISOString(),
   });
   if (dayErr) return { filename, status: 'error', message: 'Couldn’t save the daily totals.' };
@@ -105,6 +110,6 @@ export async function ingestPosPdf(
 
   return {
     filename, status: 'processed', store: store.name, businessDate: parsed.businessDate,
-    message: `Sales $${parsed.netSales.toFixed(2)} · cash $${parsed.netCashFlow.toFixed(2)} · ${parsed.departments.length} departments`,
+    message: `${overrideNote ? 'Saved anyway; the admins will see it on Discrepancies. ' : ''}Sales $${parsed.netSales.toFixed(2)} · cash $${parsed.netCashFlow.toFixed(2)} · ${parsed.departments.length} departments`,
   };
 }

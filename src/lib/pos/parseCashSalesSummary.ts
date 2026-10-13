@@ -26,6 +26,7 @@ export type CashSalesSummary = {
   netSales: number;
   cardTotal: number;
   netCashFlow: number;               // CASH-FLOW ANALYSIS → Net Cash-Flow: the cash the drawer must match
+  posPaidOut: number;                // CASH-FLOW ANALYSIS → Paidout (-): cash paid out through the register (already taken off Net Cash-Flow)
   cashWithoutNonRevenue: number;
   cashTendered: number;
   transactions: number;
@@ -155,6 +156,7 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
     netCashFlow: labelled(rows, /Net Cash-Flow/i, 'right'),
     cashWithoutNonRevenue: optional(rows, /Total Cash Amount/i),
     cashTendered: tenders.find(t => /^cash$/i.test(t.type))?.amount ?? 0,
+    posPaidOut: Math.abs(optional(rows, /^Paid\s*out\s*\(-\)|^Paidout/i, 'right') || optional(rows, /Paid-outs to Vendors/i)),
     transactions: labelled(rows, /Customer\(Transaction\) Count/i),
     averageSale: optional(rows, /Customer Average Sale/i),
     voidCount: optional(rows, /Delete\/Void Count/i),
@@ -171,8 +173,8 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
   s.checks = [
     { name: 'Tenders add up to amount received', ok: near(tenderSum, s.grossReceived), detail: `${tenderSum} vs ${s.grossReceived}` },
     { name: 'Card types add up to card total', ok: near(cardSum, s.cardTotal), detail: `${cardSum} vs ${s.cardTotal}` },
-    { name: 'Card + cash-flow = amount received', ok: near(s.cardTotal + s.netCashFlow, s.grossReceived), detail: `${cents(s.cardTotal + s.netCashFlow)} vs ${s.grossReceived}` },
-    { name: 'Cash-flow matches cash tendered', ok: near(s.netCashFlow, s.cashTendered), detail: `${s.netCashFlow} vs ${s.cashTendered}` },
+    { name: 'Card + cash-flow + register paid-outs = amount received', ok: near(s.cardTotal + s.netCashFlow + s.posPaidOut, s.grossReceived), detail: `${cents(s.cardTotal + s.netCashFlow + s.posPaidOut)} vs ${s.grossReceived}` },
+    { name: 'Cash-flow + register paid-outs = cash tendered', ok: near(s.netCashFlow + s.posPaidOut, s.cashTendered), detail: `${cents(s.netCashFlow + s.posPaidOut)} vs ${s.cashTendered}` },
     { name: 'Departments add up to department total', ok: near(deptSum, departmentTotals.sales), detail: `${deptSum} vs ${departmentTotals.sales}` },
     { name: 'Department total matches net sales', ok: near(departmentTotals.sales, s.netSales), detail: `${departmentTotals.sales} vs ${s.netSales}` },
     { name: 'Found at least one department', ok: departments.length > 0, detail: `${departments.length} departments` },

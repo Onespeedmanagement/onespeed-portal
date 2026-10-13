@@ -12,7 +12,7 @@ const LABEL: Record<IngestResult['status'], [string, string]> = {
 
 type UploadAction = (prev: IngestResult[], form: FormData) => Promise<IngestResult[]>;
 
-export function UploadForm({ upload, note }: { upload: UploadAction; note?: string }) {
+export function UploadForm({ upload, note, overrideOption }: { upload: UploadAction; note?: string; overrideOption?: boolean }) {
   const [results, action, pending] = useActionState<IngestResult[], FormData>(upload, []);
   return (
     <>
@@ -22,6 +22,12 @@ export function UploadForm({ upload, note }: { upload: UploadAction; note?: stri
           <input id="files" name="files" type="file" accept="application/pdf,.pdf" multiple required />
           <span className="small muted">{note ?? 'Pick one or many. Each file is checked before anything is saved; the same file twice is ignored.'}</span>
         </div>
+        {overrideOption && (
+          <label className="small" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <input type="checkbox" name="override" style={{ width: 'auto', marginTop: 2 }} />
+            <span>Save even if the report&apos;s own totals don&apos;t add up. Use this only for a report that was held and you&apos;ve checked it against the printout. Ujash and Vrajesh are alerted (Discrepancies and the morning email).</span>
+          </label>
+        )}
         <div><button className="btn" type="submit" disabled={pending}>{pending ? 'Reading…' : 'Upload and check'}</button></div>
       </form>
       {results.length > 0 && (

@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   if (!secretOk(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const supabase = supabaseService();
   const day = addDays(todayNY(), -1);
-  const [{ data: stores }, { data: pos }, { data: cos }, { data: tol }, { data: qs }, { data: held }, { data: reps }] = await Promise.all([
+  const [{ data: stores }, { data: pos }, { data: cos }, { data: tol }, { data: qs }, { data: held }, { data: reps }, { data: overrides }] = await Promise.all([
     supabase.from('businesses').select('id, name, portfolio_id, portfolios(status)').eq('active', true).order('name'),
     supabase.from('pos_daily').select('business_id, total_sales, profit_pct, transactions').eq('business_date', day),
     supabase.from('closeout_results').select('business_id, difference').eq('business_date', day),
@@ -21,6 +21,7 @@ export async function GET(request: Request) {
     supabase.from('questions').select('id').eq('resolved', false),
     supabase.from('pos_files').select('id').in('status', ['held', 'unknown_store', 'error']).gte('received_at', `${addDays(day, -2)}T00:00:00Z`),
     supabase.from('owners_report').select('business_id').eq('business_date', addDays(day, -1)),
+    supabase.from('pos_daily').select('business_id, business_date, override_by').not('override_note', 'is', null).gte('updated_at', `${addDays(day, -1)}T00:00:00Z`),
   ]);
   const tolerance = Number(tol?.value ?? 1);
   const live = (stores ?? []).filter((s) => (s as unknown as { portfolios: { status: string } | null }).portfolios?.status === 'live');
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
     return { store: s.name, reported: !!p, sales: p?.total_sales ?? null, profit: p?.profit_pct ?? null, customers: p?.transactions ?? null, cash };
   });
   const missing = lines.filter((l) => !l.reported).map((l) => l.store);
-  const issues = lines.filter((l) => /Short|Over|No close-out/.test(l.cash)).length + (qs?.length ?? 0) + (held?.length ?? 0) + missing.length;
+  const issues = lines.filter((l) => /Short|Over|No close-out/.test(l.cash)).length + (qs?.length ?? 0) + (held?.length ?? 0) + (overrides?.length ?? 0) + missing.length;
   const h = holidayOn(day);
   const subject = `${missing.length ? '⚠ ' : ''}One Speed · ${shortDate(day)}: ${lines.length - missing.length} of ${lines.length} stores reported${issues ? ` · ${issues} to review` : ' · all clear'}`;
   const rows = lines.map((l) => `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee"><b>${esc(l.store)}</b></td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${l.reported ? usd(l.sales) : '<span style="color:#a8431b">Missing</span>'}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${l.customers ?? '—'}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${l.profit != null ? l.profit + '%' : '—'}</td><td style="padding:6px 10px;border-bottom:1px solid #eee">${esc(l.cash)}</td></tr>`).join('');
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
 <p style="margin:0 0 12px">${missing.length ? `<b style="color:#a8431b">Missing POS report: ${esc(missing.join(', '))}.</b> ` : 'All stores reported. '}
 ${issues ? `${issues} item(s) to review.` : 'Nothing to review.'}</p>
 <table style="border-collapse:collapse;font-size:14px"><tr style="text-align:left;color:#555"><th style="padding:6px 10px">Store</th><th style="padding:6px 10px;text-align:right">Sales</th><th style="padding:6px 10px;text-align:right">Customers</th><th style="padding:6px 10px;text-align:right">Profit</th><th style="padding:6px 10px">Cash</th></tr>${rows}</table>
-<p style="font-size:13px;color:#555">Open bookkeeper questions: ${qs?.length ?? 0} · POS files held: ${held?.length ?? 0} · Owners Report entered for ${reps?.length ?? 0} of ${lines.length} stores (day before).</p>
+<p style="font-size:13px;color:#555">Open bookkeeper questions: ${qs?.length ?? 0} · POS files held: ${held?.length ?? 0} · POS reports saved anyway (check on Discrepancies): ${overrides?.length ?? 0} · Owners Report entered for ${reps?.length ?? 0} of ${lines.length} stores (day before).</p>
 <p><a href="${portal}/discrepancies" style="color:#1f3d2b">Open Discrepancies</a> · <a href="${portal}/daily" style="color:#1f3d2b">Daily view</a></p></div>`;
   return NextResponse.json({ date: day, subject, html, missing, issues });
 }

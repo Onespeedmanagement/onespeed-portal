@@ -11,7 +11,7 @@ import { resolveItem } from './actions';
 export const dynamic = 'force-dynamic';
 
 type Item = {
-  key: string; kind: 'short' | 'over' | 'missing_closeout' | 'file' | 'question';
+  key: string; kind: 'short' | 'over' | 'missing_closeout' | 'file' | 'question' | 'override';
   businessId: string; store: string; date: string; ref: string;
   title: string; detail: string; meta?: string;
 };
@@ -22,6 +22,7 @@ const PILL: Record<Item['kind'], [string, string]> = {
   over: ['warn', 'Over'],
   missing_closeout: ['bad', 'Missed close-out'],
   file: ['bad', 'POS file problem'],
+  override: ['warn', 'Saved anyway'],
 };
 
 export default async function DiscrepanciesPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
@@ -36,7 +37,7 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
   const [{ data: stores }, { data: cos }, { data: pos }, { data: files }, { data: qs }, { data: res }] = await Promise.all([
     supabase.from('businesses').select('id, name'),
     supabase.from('closeout_results').select('id, business_id, business_date, difference, cash_counted, cash_sales, submitted_by, note').gte('business_date', from).lte('business_date', to),
-    supabase.from('pos_daily').select('business_id, business_date').gte('business_date', from).lte('business_date', to),
+    supabase.from('pos_daily').select('business_id, business_date, override_note, override_by, total_sales, cash_sales').gte('business_date', from).lte('business_date', to),
     supabase.from('pos_files').select('id, business_id, business_date, filename, status, message, received_at').in('status', ['held', 'unknown_store', 'error']).gte('received_at', `${from}T00:00:00Z`),
     supabase.from('questions').select('id, business_id, business_date, body, asked_by, asked_at').eq('resolved', false),
     supabase.from('resolutions').select('business_id, business_date, kind, ref'),
@@ -61,6 +62,12 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
       detail: `Counted ${money(c.cash_counted)} vs POS cash ${money(c.cash_sales)}. ${who(c.id) ? `Assigned to ${who(c.id)}.` : 'No employee picked.'}`,
       meta: `Submitted by ${c.submitted_by}${c.note ? ` · “${c.note}”` : ''}` });
   }
+  for (const p of pos ?? []) {
+    if (!p.override_note || resolved.has(`override|${p.business_id}|${p.business_date}|`)) continue;
+    items.push({ key: `o${p.business_id}${p.business_date}`, kind: 'override', businessId: p.business_id, store: storeName(p.business_id), date: p.business_date, ref: '',
+      title: `POS report saved although its totals don't add up · sales ${money(p.total_sales)} · cash ${money(p.cash_sales)}`,
+      detail: p.override_note, meta: `Check the numbers against the printout and fix by hand if needed. Saved by ${p.override_by}` });
+  }
   const closedSet = new Set((cos ?? []).map((c) => `${c.business_id}|${c.business_date}`));
   for (const p of pos ?? []) {
     if (closedSet.has(`${p.business_id}|${p.business_date}`)) continue;
@@ -73,7 +80,7 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
     items.push({ key: `f${f.id}`, kind: 'file', businessId: f.business_id, store: storeName(f.business_id), date: f.business_date ?? f.received_at.slice(0, 10), ref: f.id,
       title: f.filename, detail: f.message ?? '' });
   }
-  const order = { question: 0, file: 1, missing_closeout: 2, short: 3, over: 4 };
+  const order = { question: 0, override: 1, file: 2, missing_closeout: 3, short: 4, over: 5 };
   items.sort((a, b) => order[a.kind] - order[b.kind] || b.date.localeCompare(a.date));
 
   return (
@@ -85,7 +92,7 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
           <div>
             <div className="eyebrow">Admins only · check daily</div>
             <h1>Discrepancies</h1>
-            <span className="small muted">Shorts, overs, missed close-outs, POS file problems and bookkeeper questions from every store.</span>
+            <span className="small muted">Shorts, overs, missed close-outs, POS file problems, reports saved anyway and bookkeeper questions from every store.</span>
           </div>
           <form className="row" method="get">
             <select name="days" defaultValue={String(days)} aria-label="Range" style={{ width: 'auto' }}>

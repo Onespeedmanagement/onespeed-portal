@@ -5,7 +5,8 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { ingestPosPdf, type IngestResult } from '@/lib/pos/ingest';
 
 export async function uploadPosFiles(_prev: IngestResult[], form: FormData): Promise<IngestResult[]> {
-  await requireRole('admin');
+  const me = await requireRole('admin');
+  const override = form.get('override') === 'on' ? me.email : undefined;
   const supabase = await supabaseServer();
   const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
   const results: IngestResult[] = [];
@@ -14,7 +15,7 @@ export async function uploadPosFiles(_prev: IngestResult[], form: FormData): Pro
       results.push({ filename: f.name, status: 'error', message: 'Only POS PDF reports are accepted.' });
       continue;
     }
-    results.push(await ingestPosPdf(supabase, new Uint8Array(await f.arrayBuffer()), f.name, 'upload'));
+    results.push(await ingestPosPdf(supabase, new Uint8Array(await f.arrayBuffer()), f.name, 'upload', undefined, { override }));
   }
   revalidatePath('/portfolio');
   return results;
