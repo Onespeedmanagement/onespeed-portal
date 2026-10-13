@@ -109,10 +109,21 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
   const top = page1[0]?.cells.find(c => c.x < 150);
   const storeName = page1.flatMap(r => r.cells).filter(c => c.x < 150).sort((a, b) => b.y - a.y)[0]?.text ?? top?.text ?? '';
 
-  const dateCell = page1.flatMap(r => r.cells).find(c => /For the day of/i.test(c.text));
-  const m = dateCell?.text.match(/(\d{2})-([A-Za-z]{3})-(\d{4})/);
-  if (!m) throw new Error('Couldn\'t find the business date ("For the day of …")');
-  const businessDate = `${m[3]}-${MONTHS[m[2]]}-${m[1]}`;
+  // Business date: "For the day of 06-Oct-2026", or a store whose day runs overnight:
+  // "From 12-Oct-2026 03:00 AM To 13-Oct-2026 02:59 AM" (the day is the From date).
+  const page1Text = page1.flatMap(r => r.cells).map(c => c.text).join(' ').replace(/\s+/g, ' ');
+  const DATE = '(\\d{2})-([A-Za-z]{3})-(\\d{4})';
+  const iso = (d: string, mon: string, y: string) => `${y}-${MONTHS[mon.slice(0, 1).toUpperCase() + mon.slice(1, 3).toLowerCase()]}-${d}`;
+  let businessDate: string;
+  const day = page1Text.match(new RegExp(`For the day of\\s*${DATE}`, 'i'));
+  const range = page1Text.match(new RegExp(`From\\s*${DATE}[^]*?To\\s*${DATE}`, 'i'));
+  if (day) businessDate = iso(day[1], day[2], day[3]);
+  else if (range) {
+    businessDate = iso(range[1], range[2], range[3]);
+    const to = iso(range[4], range[5], range[6]);
+    const span = (Date.parse(to) - Date.parse(businessDate)) / 86400000;
+    if (span > 1) throw new Error(`This report covers ${businessDate} to ${to}. Print one day at a time.`);
+  } else throw new Error('Couldn\'t find the business date ("For the day of …" or "From … To …")');
 
   // Tender table: left-side rows between "TENDER TYPE" header and "Gross Amt Received"
   const headerY = page1.find(r => side(r, 'left').some(c => /^TENDER TYPE$/i.test(c.text)))?.y;
