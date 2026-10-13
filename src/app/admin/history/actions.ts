@@ -3,11 +3,12 @@ import { revalidatePath } from 'next/cache';
 import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { parseMonthlyReport } from '@/lib/history/parseMonthlyReport';
+import { todayNY } from '@/lib/dates';
 
 export type HistoryResult = {
   ok: boolean;
   message: string;
-  stores: { code: string; store: string | null; months: number; warnings: string[] }[];
+  stores: { code: string; store: string | null; months: number; range?: string; warnings: string[] }[];
 };
 
 // Column headings on the sheet → words in the store name
@@ -31,6 +32,12 @@ export async function importHistory(_prev: HistoryResult | null, form: FormData)
     return { ok: false, message: `Couldn't read that PDF: ${(e as Error).message}`, stores: [] };
   }
   if (months.length === 0) return { ok: false, message: 'No monthly revenue found in that file. Is it the Monthly Store Performance Report?', stores: [] };
+  const thisMonth = `${todayNY().slice(0, 7)}-01`;
+  const future = months.find((m) => m.month > thisMonth);
+  if (future) {
+    const label = new Date(`${future.month}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    return { ok: false, message: `Nothing saved: with the year you picked, this sheet would have numbers for ${label}, which hasn't happened yet. Check which year "Current Yr" is on this sheet and pick that.`, stores: [] };
+  }
 
   const supabase = await supabaseServer();
   const { data: businesses } = await supabase.from('businesses').select('id, name');
@@ -52,7 +59,8 @@ export async function importHistory(_prev: HistoryResult | null, form: FormData)
       business_id: biz.id, month: m.month, revenue: m.revenue, customers: m.customers, profit_pct: m.profitPct,
       source: file.name, updated_by: me.email, updated_at: new Date().toISOString(),
     })), { onConflict: 'business_id,month' });
-    stores.push({ code, store: biz.name, months: error ? 0 : list.length, warnings: error ? [`Couldn't save: ${error.message}`, ...warnings] : warnings });
+    const short = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    stores.push({ code, store: biz.name, months: error ? 0 : list.length, range: `${short(list[0].month)} – ${short(list[list.length - 1].month)}`, warnings: error ? [`Couldn't save: ${error.message}`, ...warnings] : warnings });
   }
   revalidatePath('/admin/history');
   revalidatePath('/dashboard');

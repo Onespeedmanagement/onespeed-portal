@@ -19,12 +19,20 @@ const NUMBER = /^-?\$?\s*-?[\d,]*\.?\d+%?$/;
 const num = (s: string) => Number(s.replace(/[$,%\s]/g, ''));
 
 function metricOf(text: string): keyof Omit<MonthTotals, 'code' | 'month' | 'warning'> | null {
+  // Labels can be cut off when the sheet is printed narrow ("Current Yr Custo", "Currennt Yr Reve")
   const t = text.toLowerCase();
-  if (t.includes('ticket')) return 'ticket';
-  if (t.includes('customer')) return 'customers';
-  if (t.includes('profit')) return 'profitPct';
-  if (t.includes('revenue') || t.includes('sales')) return 'revenue';
+  if (/avg|ticket/.test(t)) return 'ticket';
+  if (/cust/.test(t)) return 'customers';
+  if (/perc|profit|margin/.test(t)) return 'profitPct';
+  if (/rev|sales/.test(t)) return 'revenue';
   return null;
+}
+
+// "October", "Oct", "Nove…" → month number
+function monthOf(text: string): number {
+  const t = text.replace(/[….\s]+$/u, '').trim().toLowerCase();
+  if (t.length < 3) return -1;
+  return MONTHS.findIndex((m) => m.startsWith(t)) + 1 || -1;
 }
 
 export async function parseMonthlyReport(pdfBytes: Uint8Array, currentYear: number): Promise<MonthTotals[]> {
@@ -35,7 +43,7 @@ export async function parseMonthlyReport(pdfBytes: Uint8Array, currentYear: numb
 
   for (const r of rows) {
     const texts = r.cells.map((c) => c.text);
-    if (texts.length === 1 && MONTHS.includes(texts[0].toLowerCase())) { month = MONTHS.indexOf(texts[0].toLowerCase()) + 1; continue; }
+    if (texts.length === 1 && monthOf(texts[0]) > 0) { month = monthOf(texts[0]); continue; }
     if (texts.length >= 2 && r.cells.every((c) => !NUMBER.test(c.text) && !LABEL.test(c.text) && !/differ/i.test(c.text))) { headers = r.cells; continue; }
     if (month < 1 || headers.length === 0) continue;
 
@@ -44,7 +52,7 @@ export async function parseMonthlyReport(pdfBytes: Uint8Array, currentYear: numb
       const [, which, rest] = lab.text.match(LABEL)!;
       const metric = metricOf(rest);
       if (!metric) return;
-      const col = [...headers].reverse().find((h) => h.x <= lab.x + 5);
+      const col = headers.reduce((best, h) => (Math.abs(h.x - lab.x) < Math.abs(best.x - lab.x) ? h : best), headers[0]);
       if (!col) return;
       const nextHeader = headers.find((h) => h.x > col.x + 5);
       const spacing = headers.length > 1 ? headers[1].x - headers[0].x : 120;

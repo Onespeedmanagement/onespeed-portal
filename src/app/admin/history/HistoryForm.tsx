@@ -10,7 +10,7 @@ export function HistoryForm({ thisYear }: { thisYear: number }) {
         <div className="field">
           <label htmlFor="file">Monthly Store Performance Report (PDF)</label>
           <input id="file" name="file" type="file" accept="application/pdf,.pdf" required />
-          <span className="small muted">In Google Sheets: File → Download → PDF. Store columns CWS, FF, UP and Suburban are matched to your stores by name.</span>
+          <span className="small muted">In Google Sheets: File → Download → PDF. Store columns CWS, FF, UP and Suburban are matched to your stores by name. Works with the full-year sheet or a few months printed on their own.</span>
         </div>
         <div className="field" style={{ maxWidth: 260 }}>
           <label htmlFor="year">&ldquo;Current Yr&rdquo; on this sheet is</label>
@@ -26,11 +26,11 @@ export function HistoryForm({ thisYear }: { thisYear: number }) {
           <div className={`notice ${result.ok ? 'good' : 'warn'}`}>{result.message}</div>
           {result.stores.length > 0 && (
             <table>
-              <thead><tr><th>Sheet column</th><th>Store</th><th className="r">Months saved</th><th>Notes</th></tr></thead>
+              <thead><tr><th>Sheet column</th><th>Store</th><th className="r">Months saved</th><th>Months</th><th>Notes</th></tr></thead>
               <tbody>
                 {result.stores.map((s) => (
                   <tr key={s.code}>
-                    <td>{s.code}</td><td>{s.store ?? '—'}</td><td className="r">{s.months}</td>
+                    <td>{s.code}</td><td>{s.store ?? '—'}</td><td className="r">{s.months}</td><td className="small">{s.range ?? '—'}</td>
                     <td className="small">{s.warnings.length ? s.warnings.map((w, i) => <div key={i}>{w}</div>) : '—'}</td>
                   </tr>
                 ))}
