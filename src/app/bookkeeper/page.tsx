@@ -66,7 +66,7 @@ export default async function BookkeeperPage({ searchParams }: { searchParams: P
                   const q = myQs?.filter((x) => x.business_date === r.date) ?? [];
                   return (
                     <tr key={r.date}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{shortDate(r.date)}<HolidayTag date={r.date} /><div><a className="small" href={`/bookkeeper/edit?store=${store!.id}&date=${r.date}`}>Edit numbers</a></div></td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{shortDate(r.date)}<HolidayTag date={r.date} /><div><a className="small" href={`/bookkeeper/edit?store=${store!.id}&date=${r.date}`}>Edit sales / cash</a></div></td>
                       <td className="r">{money(r.pos?.card_sales)}</td>
                       <td className="r">{money(r.pos?.cash_sales)}</td>
                       <td className="r">{money(r.pos?.total_sales)}</td>

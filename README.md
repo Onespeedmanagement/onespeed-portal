@@ -34,7 +34,7 @@ Try it on a sample: `npx tsx scripts/parse-sample.mts path/to/report.pdf`
    once to approve permissions, then add the three time-driven triggers listed at the top of the file.
 
 ## Database updates (run in Supabase SQL Editor, in order)
-0001_init · 0002_people · 0003_manager_upload · 0004_resolutions · 0005_monthly_history · 0006_manager_backfill · 0007_people · 0008_max_and_jacob · 0009_closeout_backfill · 0010_bookkeeper_upload · 0011_qb_outstanding · 0012_pos_override · 0013_bookkeeper_replace
+0001_init · 0002_people · 0003_manager_upload · 0004_resolutions · 0005_monthly_history · 0006_manager_backfill · 0007_people · 0008_max_and_jacob · 0009_closeout_backfill · 0010_bookkeeper_upload · 0011_qb_outstanding · 0012_pos_override · 0013_bookkeeper_replace · 0014_bookkeeper_cash
 
 ## Last year's numbers
 Admin → Upload POS reports → **Monthly sales history**: upload the Monthly Store
