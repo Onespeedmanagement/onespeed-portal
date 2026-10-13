@@ -19,7 +19,7 @@ const niceDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateStrin
 export async function ingestPosPdf(
   supabase: SupabaseClient, bytes: Uint8Array, filename: string, source: 'email' | 'upload',
   restrictTo?: Restrict,
-  opts: { noReplace?: boolean; override?: string } = {},   // noReplace: add missing days only. override: who saves a report that doesn't add up
+  opts: { noReplace?: boolean; override?: string; logChangesAs?: string } = {},   // logChangesAs: record before/after when replacing a day   // noReplace: add missing days only. override: who saves a report that doesn't add up
 ): Promise<IngestResult> {
   const sha256 = createHash('sha256').update(bytes).digest('hex');
 
@@ -60,10 +60,12 @@ export async function ingestPosPdf(
     return { filename, status: 'unknown_store', store: parsed.storeName, businessDate: parsed.businessDate, message };
   }
 
-  if (opts.noReplace) {
-    const { data: have } = await supabase.from('pos_daily').select('business_date')
+  let before: Record<string, unknown> | null = null;
+  if (opts.noReplace || opts.logChangesAs) {
+    const { data: have } = await supabase.from('pos_daily').select('total_sales, card_sales, cash_sales, transactions, profit')
       .eq('business_id', store.id).eq('business_date', parsed.businessDate).maybeSingle();
-    if (have) return { filename, status: 'duplicate', store: store.name, businessDate: parsed.businessDate,
+    before = have;
+    if (have && opts.noReplace) return { filename, status: 'duplicate', store: store.name, businessDate: parsed.businessDate,
       message: `${store.name} already has ${niceDate(parsed.businessDate)}. Only an admin can replace a day.` };
   }
 
@@ -108,8 +110,15 @@ export async function ingestPosPdf(
   })));
   if (deptErr) return { filename, status: 'error', message: 'Saved totals, but departments failed to save.' };
 
+  if (before && opts.logChangesAs) {
+    await supabase.from('pos_changes').insert({
+      business_id: store.id, business_date: parsed.businessDate, changed_by: opts.logChangesAs, before,
+      after: { total_sales: parsed.netSales, card_sales: parsed.cardTotal, cash_sales: parsed.netCashFlow, transactions: parsed.transactions, profit: t.profit },
+    });
+  }
+
   return {
     filename, status: 'processed', store: store.name, businessDate: parsed.businessDate,
-    message: `${overrideNote ? 'Saved anyway; the admins will see it on Discrepancies. ' : ''}Sales $${parsed.netSales.toFixed(2)} · cash $${parsed.netCashFlow.toFixed(2)} · ${parsed.departments.length} departments`,
+    message: `${before && opts.logChangesAs ? 'Replaced the earlier numbers; Ujash and Vrajesh are alerted. ' : ''}${overrideNote ? 'Saved anyway; the admins will see it on Discrepancies. ' : ''}Sales $${parsed.netSales.toFixed(2)} · cash $${parsed.netCashFlow.toFixed(2)} · ${parsed.departments.length} departments`,
   };
 }

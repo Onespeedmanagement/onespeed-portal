@@ -11,7 +11,7 @@ import { resolveItem } from './actions';
 export const dynamic = 'force-dynamic';
 
 type Item = {
-  key: string; kind: 'short' | 'over' | 'missing_closeout' | 'file' | 'question' | 'override';
+  key: string; kind: 'short' | 'over' | 'missing_closeout' | 'file' | 'question' | 'override' | 'changed';
   businessId: string; store: string; date: string; ref: string;
   title: string; detail: string; meta?: string;
 };
@@ -23,6 +23,7 @@ const PILL: Record<Item['kind'], [string, string]> = {
   missing_closeout: ['bad', 'Missed close-out'],
   file: ['bad', 'POS file problem'],
   override: ['warn', 'Saved anyway'],
+  changed: ['warn', 'Numbers changed'],
 };
 
 export default async function DiscrepanciesPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
@@ -34,13 +35,14 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
   const from = addDays(to, -(days - 1));
   const tolerance = await getTolerance(supabase);
 
-  const [{ data: stores }, { data: cos }, { data: pos }, { data: files }, { data: qs }, { data: res }] = await Promise.all([
+  const [{ data: stores }, { data: cos }, { data: pos }, { data: files }, { data: qs }, { data: res }, { data: changes }] = await Promise.all([
     supabase.from('businesses').select('id, name'),
     supabase.from('closeout_results').select('id, business_id, business_date, difference, cash_counted, cash_sales, submitted_by, note').gte('business_date', from).lte('business_date', to),
     supabase.from('pos_daily').select('business_id, business_date, override_note, override_by, total_sales, cash_sales').gte('business_date', from).lte('business_date', to),
     supabase.from('pos_files').select('id, business_id, business_date, filename, status, message, received_at').in('status', ['held', 'unknown_store', 'error']).gte('received_at', `${from}T00:00:00Z`),
     supabase.from('questions').select('id, business_id, business_date, body, asked_by, asked_at').eq('resolved', false),
     supabase.from('resolutions').select('business_id, business_date, kind, ref'),
+    supabase.from('pos_changes').select('id, business_id, business_date, changed_by, changed_at, before, after').gte('changed_at', `${from}T00:00:00Z`).order('changed_at', { ascending: false }),
   ]);
   const storeName = (id: string | null) => stores?.find((s) => s.id === id)?.name ?? 'Unknown store';
   const resolved = new Set((res ?? []).map((r) => `${r.kind}|${r.business_id}|${r.business_date}|${r.ref}`));
@@ -68,6 +70,18 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
       title: `POS report saved although its totals don't add up · sales ${money(p.total_sales)} · cash ${money(p.cash_sales)}`,
       detail: p.override_note, meta: `Check the numbers against the printout and fix by hand if needed. Saved by ${p.override_by}` });
   }
+  type Nums = { total_sales?: number; card_sales?: number; cash_sales?: number } | null;
+  const delta = (label: string, b: number | undefined, a: number | undefined) =>
+    Number(b ?? 0) === Number(a ?? 0) ? null : `${label} ${money(b)} → ${money(a)}`;
+  for (const c of changes ?? []) {
+    if (resolved.has(`changed|${c.business_id}|${c.business_date}|${c.id}`)) continue;
+    const b = c.before as Nums, a = c.after as Nums;
+    const parts = [delta('sales', b?.total_sales, a?.total_sales), delta('cash', b?.cash_sales, a?.cash_sales), delta('card', b?.card_sales, a?.card_sales)].filter(Boolean);
+    items.push({ key: `x${c.id}`, kind: 'changed', businessId: c.business_id, store: storeName(c.business_id), date: c.business_date, ref: c.id,
+      title: parts.length ? parts.join(' · ') : 'Report replaced (same totals)',
+      detail: 'The bookkeeper uploaded a new POS report for this day, replacing the earlier one.',
+      meta: `Changed by ${c.changed_by} · ${new Date(c.changed_at).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` });
+  }
   const closedSet = new Set((cos ?? []).map((c) => `${c.business_id}|${c.business_date}`));
   for (const p of pos ?? []) {
     if (closedSet.has(`${p.business_id}|${p.business_date}`)) continue;
@@ -80,7 +94,7 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
     items.push({ key: `f${f.id}`, kind: 'file', businessId: f.business_id, store: storeName(f.business_id), date: f.business_date ?? f.received_at.slice(0, 10), ref: f.id,
       title: f.filename, detail: f.message ?? '' });
   }
-  const order = { question: 0, override: 1, file: 2, missing_closeout: 3, short: 4, over: 5 };
+  const order = { question: 0, changed: 1, override: 2, file: 3, missing_closeout: 4, short: 5, over: 6 };
   items.sort((a, b) => order[a.kind] - order[b.kind] || b.date.localeCompare(a.date));
 
   return (

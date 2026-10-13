@@ -12,9 +12,9 @@ export default async function BookkeeperUploadPage() {
       <BookkeeperNav active="/bookkeeper/upload" />
       <main className="page">
         <div>
-          <div className="eyebrow">Fill in missing days</div>
+          <div className="eyebrow">Add or correct a day</div>
           <h1>Upload POS reports</h1>
-          <span className="small muted">For days that don&apos;t have their POS report yet, any store. The store and date are read from inside each PDF. A day that already has a report is skipped; ask an admin if one needs replacing. Cash is still entered by the store manager.</span>
+          <span className="small muted">For any store and day. The store and date are read from inside each PDF. Uploading a report for a day that already has one replaces its numbers, and Ujash and Vrajesh are alerted with the before and after. Cash is still entered by the store manager.</span>
         </div>
         <UploadForm upload={bookkeeperUpload} overrideOption note="Pick one or many (up to 40). Each file is checked before anything is saved." />
       </main>
