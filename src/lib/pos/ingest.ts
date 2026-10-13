@@ -12,11 +12,13 @@ export type IngestResult = {
 
 // Reads one POS PDF and saves it, but only if it passes every check.
 // The same file twice is ignored; a file that doesn't add up is held for an admin.
-// `restrictTo` (manager uploads): the file must be for this store and this date,
-// and nothing is written unless it is.
+// `restrictTo` (manager uploads): the file must be for this store and one of the
+// allowed dates, and each day can be uploaded only once. Nothing is written otherwise.
+export type Restrict = { businessId: string; storeName: string; allowedDates: string[]; doneDates: string[]; closingOut?: string };
+const niceDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 export async function ingestPosPdf(
   supabase: SupabaseClient, bytes: Uint8Array, filename: string, source: 'email' | 'upload',
-  restrictTo?: { businessId: string; businessDate: string; storeName: string },
+  restrictTo?: Restrict,
 ): Promise<IngestResult> {
   const sha256 = createHash('sha256').update(bytes).digest('hex');
 
@@ -32,9 +34,15 @@ export async function ingestPosPdf(
     return { filename, status: 'error', message };
   }
 
-  if (restrictTo && parsed.businessDate !== restrictTo.businessDate) {
+  if (restrictTo && restrictTo.doneDates.includes(parsed.businessDate)) {
+    return { filename, status: 'duplicate', businessDate: parsed.businessDate,
+      message: `${niceDate(parsed.businessDate)} is already uploaded. Each day can only be uploaded once; ask an admin if it needs replacing.` };
+  }
+  if (restrictTo && !restrictTo.allowedDates.includes(parsed.businessDate)) {
     return { filename, status: 'error', businessDate: parsed.businessDate,
-      message: `This report is for ${parsed.businessDate}, but you're closing out ${restrictTo.businessDate}. Pick that day's report, or switch days above.` };
+      message: restrictTo.closingOut
+        ? `This report is for ${niceDate(parsed.businessDate)}, but you're closing out ${niceDate(restrictTo.closingOut)}. Pick that day's report, or switch days above.`
+        : `This report is for ${niceDate(parsed.businessDate)}, which can't be uploaded here. Ask an admin.` };
   }
 
   const { data: businesses } = await supabase.from('businesses').select('id, name, pos_match').eq('active', true);

@@ -5,6 +5,7 @@ import { longDate, money, signedMoney } from '@/lib/format';
 import { CloseoutForm } from './CloseoutForm';
 import { EmployeeManager } from './EmployeeManager';
 import { UploadToday } from './UploadToday';
+import { MissingReports } from './MissingReports';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,11 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
     return (<><TopBar who={me.email} /><main className="page"><div className="notice warn">You aren&apos;t assigned to a store yet. Ask an admin.</div></main></>);
   }
 
-  const { data: openRows } = await supabase.rpc('manager_open_dates', { b: store.id });
+  const [{ data: openRows }, { data: reportDays }] = await Promise.all([
+    supabase.rpc('manager_open_dates', { b: store.id }),
+    supabase.rpc('manager_report_days', { b: store.id }),
+  ]);
+  const daysList = (reportDays ?? []) as { business_date: string; has_report: boolean }[];
   const openDates = ((openRows ?? []) as unknown[]).map((r) => String(typeof r === 'object' && r ? Object.values(r)[0] : r));
   const { data: submittedRows } = openDates.length
     ? await supabase.from('closeouts').select('business_date').eq('business_id', store.id).in('business_date', openDates)
@@ -35,7 +40,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
   const yesterday = openDates[openDates.length - 1];
   const day = wanted && openDates.includes(wanted) ? wanted : (pending[0] ?? yesterday);
   if (!day) {
-    return (<><TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><main className="page"><div className="notice good">You&apos;re all caught up.</div></main></>);
+    return (<><TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><main className="page" style={{ maxWidth: 880 }}><div className="notice good">You&apos;re all caught up.</div>{daysList.length > 0 && <MissingReports days={daysList} />}</main></>);
   }
 
   const [{ data: pos }, { data: done }, { data: employees }, { data: tol }] = await Promise.all([
@@ -96,6 +101,8 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
           <CloseoutForm businessId={store.id} businessDate={day} cashSales={pos?.cash_sales ?? null}
             tolerance={tolerance} employees={employees ?? []} />
         )}
+
+        {daysList.length > 0 && <MissingReports days={daysList} />}
 
         <EmployeeManager businessId={store.id} employees={employees ?? []} />
       </main>
