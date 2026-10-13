@@ -2,6 +2,7 @@ import { requireRole } from '@/lib/auth';
 import { TopBar } from '@/components/TopBar';
 import { AdminNav } from '@/components/AdminNav';
 import { UploadForm } from './UploadForm';
+import { uploadPosFiles } from './actions';
 
 export default async function UploadPage() {
   const me = await requireRole('admin');
@@ -15,7 +16,7 @@ export default async function UploadPage() {
           <div className="eyebrow" style={{ marginTop: 8 }}>Manual upload · backup to the nightly email</div>
           <h1>Upload POS reports</h1>
         </div>
-        <UploadForm />
+        <UploadForm upload={uploadPosFiles} />
         <div className="notice good">Loading last year? You don&apos;t need every daily PDF: upload the Monthly Store Performance Report once on <a href="/admin/history">Monthly sales history</a>.</div>
       </main>
     </>

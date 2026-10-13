@@ -19,6 +19,7 @@ const niceDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateStrin
 export async function ingestPosPdf(
   supabase: SupabaseClient, bytes: Uint8Array, filename: string, source: 'email' | 'upload',
   restrictTo?: Restrict,
+  opts: { noReplace?: boolean } = {},   // bookkeeper: add missing days only, never replace one
 ): Promise<IngestResult> {
   const sha256 = createHash('sha256').update(bytes).digest('hex');
 
@@ -56,6 +57,13 @@ export async function ingestPosPdf(
     const message = `No store matches "${parsed.storeName}". An admin needs to assign it.`;
     await supabase.from('pos_files').insert({ filename, sha256, source, status: 'unknown_store', business_date: parsed.businessDate, message });
     return { filename, status: 'unknown_store', store: parsed.storeName, businessDate: parsed.businessDate, message };
+  }
+
+  if (opts.noReplace) {
+    const { data: have } = await supabase.from('pos_daily').select('business_date')
+      .eq('business_id', store.id).eq('business_date', parsed.businessDate).maybeSingle();
+    if (have) return { filename, status: 'duplicate', store: store.name, businessDate: parsed.businessDate,
+      message: `${store.name} already has ${niceDate(parsed.businessDate)}. Only an admin can replace a day.` };
   }
 
   const failed = parsed.checks.filter((c) => !c.ok);

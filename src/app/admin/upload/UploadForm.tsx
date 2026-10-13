@@ -1,6 +1,5 @@
 'use client';
 import { useActionState } from 'react';
-import { uploadPosFiles } from './actions';
 import type { IngestResult } from '@/lib/pos/ingest';
 
 const LABEL: Record<IngestResult['status'], [string, string]> = {
@@ -11,15 +10,17 @@ const LABEL: Record<IngestResult['status'], [string, string]> = {
   error: ['bad', 'Error'],
 };
 
-export function UploadForm() {
-  const [results, action, pending] = useActionState<IngestResult[], FormData>(uploadPosFiles, []);
+type UploadAction = (prev: IngestResult[], form: FormData) => Promise<IngestResult[]>;
+
+export function UploadForm({ upload, note }: { upload: UploadAction; note?: string }) {
+  const [results, action, pending] = useActionState<IngestResult[], FormData>(upload, []);
   return (
     <>
       <form action={action} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="field">
           <label htmlFor="files">POS “Cash and Sales Summary” PDFs</label>
           <input id="files" name="files" type="file" accept="application/pdf,.pdf" multiple required />
-          <span className="small muted">Pick one or many. Each file is checked before anything is saved; the same file twice is ignored.</span>
+          <span className="small muted">{note ?? 'Pick one or many. Each file is checked before anything is saved; the same file twice is ignored.'}</span>
         </div>
         <div><button className="btn" type="submit" disabled={pending}>{pending ? 'Reading…' : 'Upload and check'}</button></div>
       </form>
