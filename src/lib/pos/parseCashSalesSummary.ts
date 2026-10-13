@@ -77,17 +77,29 @@ export async function readRows(pdfBytes: Uint8Array): Promise<Row[]> {
 const side = (r: Row, which: 'left' | 'right') =>
   r.cells.filter(c => (which === 'left' ? c.x < 300 : c.x >= 300));
 
-function labelled(rows: Row[], label: RegExp, which: 'left' | 'right' = 'left'): number {
-  for (const r of rows.filter(r => r.page === 1)) {
-    const cells = side(r, which);
-    const i = cells.findIndex(c => label.test(c.text));
-    if (i >= 0) {
-      const value = cells.slice(i + 1).reverse().find(c => isNumeric(c.text));
-      if (value) return toNumber(value.text);
+function findLabelled(rows: Row[], label: RegExp, which: 'left' | 'right'): number | null {
+  // Look on the expected side first, then the other side (the layout shifts a little day to day)
+  for (const part of [which, which === 'left' ? 'right' : 'left'] as const) {
+    for (const r of rows.filter(r => r.page === 1)) {
+      const cells = side(r, part);
+      const i = cells.findIndex(c => label.test(c.text));
+      if (i >= 0) {
+        const value = cells.slice(i + 1).reverse().find(c => isNumeric(c.text));
+        if (value) return toNumber(value.text);
+      }
     }
   }
-  throw new Error(`Couldn't find "${label.source}" in the report`);
+  return null;
 }
+
+function labelled(rows: Row[], label: RegExp, which: 'left' | 'right' = 'left'): number {
+  const v = findLabelled(rows, label, which);
+  if (v == null) throw new Error(`Couldn't find "${label.source.replace(/\\/g, '')}" in the report`);
+  return v;
+}
+
+// Lines the POS leaves out (or leaves blank) on days with nothing to report count as 0
+const optional = (rows: Row[], label: RegExp, which: 'left' | 'right' = 'left') => findLabelled(rows, label, which) ?? 0;
 
 export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashSalesSummary> {
   const rows = await readRows(pdfBytes);
@@ -134,21 +146,21 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
   const s: CashSalesSummary = {
     storeName, businessDate, tenders, hourly, departments, departmentTotals,
     grossReceived: labelled(rows, /Gross Amt Received/i),
-    giftcardRedeemed: labelled(rows, /Giftcard Redeemed/i),
-    nonRevenue: labelled(rows, /Total Non-Revenue Amt/i),
+    giftcardRedeemed: optional(rows, /Giftcard Redeemed/i),
+    nonRevenue: optional(rows, /Total Non-Revenue Amt/i),
     grossSale: labelled(rows, /Gross Sale/i),
     taxes: labelled(rows, /^Taxes/i),
     netSales: labelled(rows, /Net Sales/i),
     cardTotal: labelled(rows, /Credit & Debit Card Total/i),
     netCashFlow: labelled(rows, /Net Cash-Flow/i, 'right'),
-    cashWithoutNonRevenue: labelled(rows, /Total Cash Amount/i),
+    cashWithoutNonRevenue: optional(rows, /Total Cash Amount/i),
     cashTendered: tenders.find(t => /^cash$/i.test(t.type))?.amount ?? 0,
     transactions: labelled(rows, /Customer\(Transaction\) Count/i),
-    averageSale: labelled(rows, /Customer Average Sale/i),
-    voidCount: labelled(rows, /Delete\/Void Count/i),
-    voidAmount: labelled(rows, /Void\/Delete Amount/i),
-    noSaleCount: labelled(rows, /No Sale Count/i),
-    discounts: labelled(rows, /Total Discount/i),
+    averageSale: optional(rows, /Customer Average Sale/i),
+    voidCount: optional(rows, /Delete\/Void Count/i),
+    voidAmount: optional(rows, /Void\/Delete Amount/i),
+    noSaleCount: optional(rows, /No Sale Count/i),
+    discounts: optional(rows, /Total Discount/i),
     checks: [],
   };
 
