@@ -25,7 +25,10 @@ export type CashSalesSummary = {
   taxes: number;
   netSales: number;
   cardTotal: number;
-  netCashFlow: number;               // CASH-FLOW ANALYSIS → Net Cash-Flow: the cash the drawer must match
+  netCashFlow: number;               // cash the close-out must match: Cash Sale (+) − Paidout (−). Safe drops are still the store's cash, so they're not taken off
+  posNetCashFlow: number;            // "Net Cash-Flow" exactly as printed (after drops)
+  cashSale: number;                  // CASH-FLOW ANALYSIS → Cash Sale (+)
+  drops: number;                     // CASH-FLOW ANALYSIS → Drop (−): cash moved to the safe during the day
   posPaidOut: number;                // CASH-FLOW ANALYSIS → Paidout (-): cash paid out through the register (already taken off Net Cash-Flow)
   cashWithoutNonRevenue: number;
   cashTendered: number;
@@ -164,7 +167,10 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
     taxes: labelled(rows, /^Taxes/i),
     netSales: labelled(rows, /Net Sales/i),
     cardTotal: labelled(rows, /Credit & Debit Card Total/i),
-    netCashFlow: labelled(rows, /Net Cash-Flow/i, 'right'),
+    netCashFlow: 0,
+    posNetCashFlow: labelled(rows, /Net Cash-Flow/i, 'right'),
+    cashSale: optional(rows, /^Cash Sale/i, 'right'),
+    drops: Math.abs(optional(rows, /^Drop/i, 'right')),
     cashWithoutNonRevenue: optional(rows, /Total Cash Amount/i),
     cashTendered: tenders.find(t => /^cash$/i.test(t.type))?.amount ?? 0,
     posPaidOut: Math.abs(optional(rows, /^Paid\s*out\s*\(-\)|^Paidout/i, 'right') || optional(rows, /Paid-outs to Vendors/i)),
@@ -177,6 +183,9 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
     checks: [],
   };
 
+  // Cash for the close-out. Older reports without a "Cash Sale (+)" line: printed Net Cash-Flow plus any drops.
+  if (!s.cashSale) s.cashSale = cents(s.posNetCashFlow + s.drops + s.posPaidOut);
+  s.netCashFlow = cents(s.cashSale - s.posPaidOut);
   const near = (a: number, b: number, tol = 0.05) => Math.abs(a - b) <= tol;
   const tenderSum = cents(tenders.reduce((t, x) => t + x.amount, 0));
   const cardSum = cents(tenders.filter(t => !/^cash$/i.test(t.type)).reduce((t, x) => t + x.amount, 0));
