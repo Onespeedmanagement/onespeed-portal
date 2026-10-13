@@ -74,7 +74,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
         <div>
           <div className="eyebrow">{day === yesterday ? 'Yesterday\u2019s close-out' : 'Catch-up close-out'}</div>
           <h1>{longDate(day)}</h1>
-          <span className="small muted">Enter the day after, once that day&apos;s POS report is printed. Days you haven&apos;t submitted stay open for {openDates.length} days.</span>
+          <span className="small muted">Enter the day after, once that day&apos;s POS report is printed. Days you haven&apos;t submitted yet are in the row below; pick one to close it out.</span>
         </div>
 
         {pending.length > 0 && (
