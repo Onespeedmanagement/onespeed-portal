@@ -9,6 +9,9 @@ import { addDays, todayNY } from '@/lib/dates';
 import { longDate } from '@/lib/format';
 import { BalanceForm, LineForm } from './Forms';
 import { deleteLine } from './actions';
+import { QbImport } from './QbImport';
+import { OutstandingTable } from '@/components/OutstandingTable';
+import { loadOutstanding } from '@/lib/qb/outstanding';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +25,7 @@ export default async function OwnersEntryPage({ searchParams }: { searchParams: 
   const tolerance = await getTolerance(supabase);
   const day = store ? await loadOwnersDay(supabase, store.id, date) : null;
   const { data: distributors } = await supabase.from('distributors').select('id, name').order('name');
+  const outstanding = store ? await loadOutstanding(supabase, store.id, date) : [];
 
   return (
     <>
@@ -32,7 +36,7 @@ export default async function OwnersEntryPage({ searchParams }: { searchParams: 
           <div>
             <div className="eyebrow">Bookkeeper entry · owners see this</div>
             <h1>Owners Report</h1>
-            <span className="small muted">Enter the QuickBooks balance and the day&apos;s payments for each store.</span>
+            <span className="small muted">Upload the QuickBooks register each day; the balance and outstanding payments fill in. Other lines can still be added by hand.</span>
           </div>
           <form className="row" method="get">
             <select name="store" defaultValue={store?.id} aria-label="Store" style={{ width: 'auto' }}>
@@ -50,6 +54,8 @@ export default async function OwnersEntryPage({ searchParams }: { searchParams: 
               <SalesAndCash day={day} tolerance={tolerance} />
             </section>
             <section className="card" style={{ flex: '2 1 560px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <QbImport businessId={store.id} date={date} dateLabel={longDate(date)} />
+              <OutstandingTable items={outstanding} date={date} />
               <BalanceForm businessId={store.id} date={date} balance={day.rep?.qb_balance ?? null} status={day.rep?.balance_status ?? 'good'} />
               <LedgerTable day={day} onDelete={(id) => (
                 <form action={deleteLine}><input type="hidden" name="id" value={id} />

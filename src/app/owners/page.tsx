@@ -5,6 +5,8 @@ import { AdminNav } from '@/components/AdminNav';
 import { HolidayTag } from '@/components/HolidayTag';
 import { SalesAndCash, LedgerTable } from '@/components/OwnersDay';
 import { loadOwnersDay } from '@/lib/owners';
+import { OutstandingTable } from '@/components/OutstandingTable';
+import { loadOutstanding } from '@/lib/qb/outstanding';
 import { getTolerance } from '@/lib/closeouts';
 import { addDays, shortDate, todayNY } from '@/lib/dates';
 import { longDate, money, signedMoney } from '@/lib/format';
@@ -22,6 +24,7 @@ export default async function OwnersPage({ searchParams }: { searchParams: Promi
   const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : addDays(todayNY(), -1);
   const tolerance = await getTolerance(supabase);
   const day = store ? await loadOwnersDay(supabase, store.id, date) : null;
+  const outstanding = store ? await loadOutstanding(supabase, store.id, date) : [];
   const ids = (stores ?? []).map((s) => s.id);
 
   const monthStart = date.slice(0, 8) + '01';
@@ -76,7 +79,9 @@ export default async function OwnersPage({ searchParams }: { searchParams: Promi
                   <div className="num" style={{ fontSize: 32, fontWeight: 600, color: 'var(--green)' }}>{day.rep ? money(day.rep.qb_balance) : 'Not entered yet'}</div></div>
                 {day.rep && <span className={`pill ${STATUS[day.rep.balance_status][0]}`}>{STATUS[day.rep.balance_status][1]}</span>}
               </div>
-              <LedgerTable day={day} />
+              {day.rep?.bank_balance != null && <span className="small muted num">Bank balance {money(day.rep.bank_balance)} · outstanding payments {money(day.rep.outstanding_total)}</span>}
+              <OutstandingTable items={outstanding} date={date} />
+              {day.lines.length > 0 && <LedgerTable day={day} />}
               {day.rep && <span className="small muted">Entered by {day.rep.entered_by}</span>}
             </section>
           </div>

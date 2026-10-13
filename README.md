@@ -34,7 +34,7 @@ Try it on a sample: `npx tsx scripts/parse-sample.mts path/to/report.pdf`
    once to approve permissions, then add the three time-driven triggers listed at the top of the file.
 
 ## Database updates (run in Supabase SQL Editor, in order)
-0001_init · 0002_people · 0003_manager_upload · 0004_resolutions · 0005_monthly_history · 0006_manager_backfill · 0007_people · 0008_max_and_jacob · 0009_closeout_backfill · 0010_bookkeeper_upload
+0001_init · 0002_people · 0003_manager_upload · 0004_resolutions · 0005_monthly_history · 0006_manager_backfill · 0007_people · 0008_max_and_jacob · 0009_closeout_backfill · 0010_bookkeeper_upload · 0011_qb_outstanding
 
 ## Last year's numbers
 Admin → Upload POS reports → **Monthly sales history**: upload the Monthly Store
@@ -42,3 +42,10 @@ Performance Report (Google Sheets → File → Download → PDF) and pick the ye
 "Current Yr" columns are for. Columns CWS/FF/UP/Suburban are matched to stores by
 name. The dashboard uses these monthly totals wherever daily POS reports don't
 cover a whole month (pro-rated, marked ≈, for part of a month).
+
+## QuickBooks register upload (bookkeeper)
+Bookkeeper → Owners Report → pick store + date → upload the WSFS register export
+(.xls). Payments not yet cleared (dated on/after `qb_track_from`, payroll grouped
+per pay date) are added; ones no longer outstanding on the file are marked cleared;
+the QuickBooks "Ending Balance" becomes that day's balance. Preview first, then Save.
+Reads .xls with SheetJS `xlsx` 0.18.5 (npm); only signed-in bookkeepers upload, 5 MB cap.

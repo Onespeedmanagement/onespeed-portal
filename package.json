@@ -14,7 +14,8 @@
     "next": "15.5.27",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "unpdf": "^1.8.1"
+    "unpdf": "^1.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
