@@ -3,8 +3,8 @@
 // then runs consistency checks before anything is saved.
 import { getDocumentProxy } from 'unpdf';
 
-type Cell = { x: number; y: number; text: string };
-type Row = { page: number; y: number; cells: Cell[] };
+export type Cell = { x: number; y: number; text: string };
+export type Row = { page: number; y: number; cells: Cell[] };
 
 export type Tender = { type: string; count: number; amount: number };
 export type HourlySale = { period: string; count: number; amount: number };
@@ -53,7 +53,7 @@ export function toNumber(s: string): number {
 const isNumeric = (s: string) => /^-?\$?-?[\d,]*\.?\d+%?$/.test(s.trim());
 const cents = (n: number) => Math.round(n * 100) / 100;
 
-async function readRows(pdfBytes: Uint8Array): Promise<Row[]> {
+export async function readRows(pdfBytes: Uint8Array): Promise<Row[]> {
   const pdf = await getDocumentProxy(pdfBytes);
   const rows: Row[] = [];
   for (let p = 1; p <= pdf.numPages; p++) {

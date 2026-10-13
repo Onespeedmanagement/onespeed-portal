@@ -4,7 +4,7 @@ import { TopBar } from '@/components/TopBar';
 import { AdminNav } from '@/components/AdminNav';
 import { Change } from '@/components/Change';
 import { addDays, todayNY } from '@/lib/dates';
-import { change, fmt, loadPos, METRIC_LABEL, total, type Metric } from '@/lib/metrics';
+import { change, fmt, loadHistory, loadPos, METRIC_LABEL, total as totalOf, type HistRow, type PosRow, type Metric } from '@/lib/metrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,9 +40,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const supabase = await supabaseServer();
   const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
   const ids = (stores ?? []).map((s) => s.id);
-  const rows = await loadPos(supabase, ids, iso(y - 1, 1, 1), monthEnd);
+  const [rows, hist] = await Promise.all([loadPos(supabase, ids, iso(y - 1, 1, 1), monthEnd), loadHistory(supabase, ids, iso(y - 1, 1, 1), monthEnd)]);
+  const total = (r: PosRow[], b: string, f: string, t: string, h: HistRow[] = hist) => totalOf(r, b, f, t, h);
   const isInvestor = me.role === 'investor';
-  const monthOpts = Array.from({ length: 18 }, (_, i) => { const d = new Date(Date.UTC(Number(yesterday.slice(0, 4)), Number(yesterday.slice(5, 7)) - 1 - i, 15)); return [d.getUTCFullYear(), d.getUTCMonth() + 1] as const; });
+  const monthOpts = Array.from({ length: 24 }, (_, i) => { const d = new Date(Date.UTC(Number(yesterday.slice(0, 4)), Number(yesterday.slice(5, 7)) - 1 - i, 15)); return [d.getUTCFullYear(), d.getUTCMonth() + 1] as const; });
 
   const periods = [
     { label: 'Month', sub: monthLabel(y, m) + (monthEnd < iso(y, m, lastDayOf(y, m)) ? ` (1–${elapsed})` : ''), cur: [monthStart, monthEnd], ly: [shiftYear(monthStart, -1), shiftYear(monthEnd, -1)], prev: [prevStart, prevEnd], prevLabel: 'vs last month (MOM)' },
@@ -86,7 +87,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   <div className="small"><div className="muted">Avg ticket</div><strong>{fmt(cur, 'ticket')}</strong><div><Change c={change(cur, ly, 'ticket')} /></div></div>
                   <div className="small"><div className="muted">Margin</div><strong>{fmt(cur, 'margin')}</strong><div><Change c={change(cur, ly, 'margin')} /></div></div>
                 </div>
-                <span className="small muted">{cur.days} days of POS data{ly.days === 0 ? ' · last year not loaded yet' : ''}</span>
+                <span className="small muted">{cur.hist ? 'Monthly totals from sales history' : `${cur.days} days of POS data`}{ly.days === 0 ? ' · last year not loaded yet' : ly.hist ? ' · last year from sales history' : ''}</span>
               </article>
             );
           })}
@@ -120,7 +121,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </article>
             ))}
           </div>
-          <p className="small muted">YOY compares the same dates last year. MOM and QOQ compare the same number of days in the previous month or quarter. Customers = POS transactions; avg ticket = revenue ÷ customers; margin = profit ÷ revenue. Comparisons fill in as history is loaded.</p>
+          <p className="small muted">YOY compares the same dates last year. MOM and QOQ compare the same number of days in the previous month or quarter. Customers = POS transactions; avg ticket = revenue ÷ customers; margin = profit ÷ revenue. Months before the nightly POS reports come from Monthly sales history; ≈ means part of a month&apos;s total was spread evenly over its days, so treat it as an estimate.</p>
         </section>
       </main>
     </>

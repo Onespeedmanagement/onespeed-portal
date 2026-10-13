@@ -16,6 +16,7 @@ export default async function UploadPage() {
           <h1>Upload POS reports</h1>
         </div>
         <UploadForm />
+        <div className="notice good">Loading last year? You don&apos;t need every daily PDF: upload the Monthly Store Performance Report once on <a href="/admin/history">Monthly sales history</a>.</div>
       </main>
     </>
   );

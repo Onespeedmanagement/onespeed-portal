@@ -34,4 +34,11 @@ Try it on a sample: `npx tsx scripts/parse-sample.mts path/to/report.pdf`
    once to approve permissions, then add the three time-driven triggers listed at the top of the file.
 
 ## Database updates (run in Supabase SQL Editor, in order)
-0001_init · 0002_people · 0003_manager_upload · 0004_resolutions
+0001_init · 0002_people · 0003_manager_upload · 0004_resolutions · 0005_monthly_history
+
+## Last year's numbers
+Admin → Upload POS reports → **Monthly sales history**: upload the Monthly Store
+Performance Report (Google Sheets → File → Download → PDF) and pick the year the
+"Current Yr" columns are for. Columns CWS/FF/UP/Suburban are matched to stores by
+name. The dashboard uses these monthly totals wherever daily POS reports don't
+cover a whole month (pro-rated, marked ≈, for part of a month).
