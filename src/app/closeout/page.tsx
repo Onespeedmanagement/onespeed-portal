@@ -28,8 +28,9 @@ const shortDate = (iso: string) => {
 };
 
 // Store manager screen: their store; yesterday's close-out, plus catch-up days not yet submitted.
-export default async function CloseoutPage({ searchParams }: { searchParams: Promise<{ date?: string; store?: string }> }) {
-  const { date: wanted, store: wantedStore } = await searchParams;
+export default async function CloseoutPage({ searchParams }: { searchParams: Promise<{ date?: string; store?: string; saved?: string }> }) {
+  const { date: wanted, store: wantedStore, saved } = await searchParams;
+  const savedNote = saved && /^\d{4}-\d{2}-\d{2}$/.test(saved) ? `✓ Close-out for ${shortDate(saved)} submitted.` : null;
   const me = await requireRole('manager');
   const supabase = await supabaseServer();
 
@@ -53,7 +54,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
   const yesterday = openDates[openDates.length - 1];
   const day = wanted && openDates.includes(wanted) ? wanted : (pending[0] ?? yesterday);
   if (!day) {
-    return (<><TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><main className="page" style={{ maxWidth: 880 }}><div className="notice good">You&apos;re all caught up.</div><StorePicker stores={stores ?? []} current={store.id} />{daysList.length > 0 && <MissingReports days={daysList} businessId={store.id} />}</main></>);
+    return (<><TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><main className="page" style={{ maxWidth: 880 }}>{savedNote && <div className="notice good">{savedNote}</div>}<div className="notice good">You&apos;re all caught up.</div><StorePicker stores={stores ?? []} current={store.id} />{daysList.length > 0 && <MissingReports key={`m${store.id}`} days={daysList} businessId={store.id} />}</main></>);
   }
 
   const [{ data: pos }, { data: done }, { data: employees }, { data: tol }] = await Promise.all([
@@ -71,6 +72,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
       <TopBar subtitle={store.name} who={`${me.email} · Store manager`} />
       <main className="page" style={{ maxWidth: 880 }}>
         <StorePicker stores={stores ?? []} current={store.id} />
+        {savedNote && <div className="notice good">{savedNote}</div>}
         <div>
           <div className="eyebrow">{day === yesterday ? 'Yesterday\u2019s close-out' : 'Catch-up close-out'}</div>
           <h1>{longDate(day)}</h1>
@@ -93,7 +95,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
           <div className="stat"><span className="small muted">Card · from POS</span><strong>{pos ? money(pos.card_sales) : 'Not in yet'}</strong></div>
         </div>
 
-        {!done && <UploadToday businessId={store.id} hasReport={!!pos} businessDate={day} label={shortDate(day)} />}
+        {!done && <UploadToday key={`u${store.id}${day}`} businessId={store.id} hasReport={!!pos} businessDate={day} label={shortDate(day)} />}
 
         {done ? (
           <section className="card num" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -113,11 +115,11 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
             <span className="small muted">Submitted by {done.submitted_by}. This day is locked; only an admin can change it.</span>
           </section>
         ) : (
-          <CloseoutForm businessId={store.id} businessDate={day} cashSales={pos?.cash_sales ?? null}
+          <CloseoutForm key={`f${store.id}${day}`} businessId={store.id} businessDate={day} cashSales={pos?.cash_sales ?? null}
             tolerance={tolerance} employees={employees ?? []} />
         )}
 
-        {daysList.length > 0 && <MissingReports days={daysList} businessId={store.id} />}
+        {daysList.length > 0 && <MissingReports key={`m${store.id}`} days={daysList} businessId={store.id} />}
 
         <EmployeeManager businessId={store.id} employees={employees ?? []} />
       </main>

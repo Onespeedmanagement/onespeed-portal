@@ -1,5 +1,6 @@
 'use server';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { toCents } from '@/lib/format';
@@ -55,7 +56,8 @@ export async function submitCloseout(_prev: FormState, form: FormData): Promise<
   }
   await supabase.from('audit_log').insert({ action: 'closeout.submitted', details: { businessId, businessDate } });
   revalidatePath('/closeout');
-  return { ok: true };
+  // Fresh page for the next day, with a confirmation (so the old numbers don't carry over)
+  redirect(`/closeout?store=${encodeURIComponent(businessId)}&saved=${encodeURIComponent(businessDate)}`);
 }
 
 export async function addEmployee(_prev: FormState, form: FormData): Promise<FormState> {
