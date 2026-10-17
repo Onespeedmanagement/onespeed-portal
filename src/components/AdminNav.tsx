@@ -8,6 +8,7 @@ const LINKS = [
   ['/admin/upload', 'Upload POS reports'],
   ['/admin/users', 'Users & employees'],
   ['/admin/stores', 'Stores'],
+  ['/contracts', 'Contracts'],
 ] as const;
 
 export function AdminNav({ active }: { active: string }) {

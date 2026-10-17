@@ -11,6 +11,7 @@
  *   processInbox        Time-driven, every hour
  *   sendMorningSummary  Time-driven, day timer, 7am to 8am
  *   checkMissingAtNoon  Time-driven, day timer, 12pm to 1pm
+ * Contract reminders go out with the morning summary (sendMorningSummary calls sendContractReminders).
  */
 
 const LABEL = 'portal-processed';
@@ -55,6 +56,17 @@ function sendMorningSummary() {
   processInbox();                       // pick up anything that just arrived
   const s = getSummary_();
   MailApp.sendEmail({ to: props_().admins, subject: s.subject, htmlBody: s.html, name: 'One Speed Portal' });
+  sendContractReminders();
+}
+
+// Contract renewal reminders (30 and 7 days before each notice deadline)
+function sendContractReminders() {
+  const cfg = props_();
+  const res = UrlFetchApp.fetch(cfg.url + '/api/reminders', { headers: { 'x-portal-secret': cfg.secret }, muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) { Logger.log('Reminders failed: ' + res.getResponseCode()); return; }
+  JSON.parse(res.getContentText()).emails.forEach(function (e) {
+    MailApp.sendEmail({ to: e.to, subject: e.subject, htmlBody: e.html, name: 'One Speed Portal' });
+  });
 }
 
 function checkMissingAtNoon() {
