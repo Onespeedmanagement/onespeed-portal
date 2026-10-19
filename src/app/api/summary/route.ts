@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   const missing = lines.filter((l) => !l.reported).map((l) => l.store);
   const issues = lines.filter((l) => /Short|Over|No close-out/.test(l.cash)).length + (qs?.length ?? 0) + (held?.length ?? 0) + (overrides?.length ?? 0) + (changes?.length ?? 0) + missing.length;
   const h = holidayOn(day);
-  const subject = `${missing.length ? '⚠ ' : ''}One Speed · ${shortDate(day)}: ${lines.length - missing.length} of ${lines.length} stores reported${issues ? ` · ${issues} to review` : ' · all clear'}`;
+  const subject = `${missing.length ? '⚠ ' : ''}OneSpeed · ${shortDate(day)}: ${lines.length - missing.length} of ${lines.length} stores reported${issues ? ` · ${issues} to review` : ' · all clear'}`;
   const rows = lines.map((l) => `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee"><b>${esc(l.store)}</b></td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${l.reported ? usd(l.sales) : '<span style="color:#a8431b">Missing</span>'}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${l.customers ?? '—'}</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right">${l.profit != null ? l.profit + '%' : '—'}</td><td style="padding:6px 10px;border-bottom:1px solid #eee">${esc(l.cash)}</td></tr>`).join('');
   const portal = process.env.PORTAL_URL ?? 'https://onespeed-portal.vercel.app';
   const html = `<div style="font-family:Arial,sans-serif;color:#1c1f1d">

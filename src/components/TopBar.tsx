@@ -2,7 +2,7 @@ export function TopBar({ subtitle, who }: { subtitle?: string; who: string }) {
   return (
     <header className="topbar">
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
-        <span className="brand">One Speed</span>
+        <span className="brand">OneSpeed</span>
         {subtitle && <span className="small">{subtitle}</span>}
       </div>
       <div className="who">

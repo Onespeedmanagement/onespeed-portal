@@ -32,7 +32,7 @@ export default async function DailyPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <TopBar subtitle="Management Portal" who={`${me.email} · Admin`} />
-      <AdminNav active="/daily" />
+      <AdminNav active="/dashboard" />
       <main className="page" style={{ maxWidth: 1360 }}>
         <div className="row between">
           <div>

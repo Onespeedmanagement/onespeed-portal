@@ -31,7 +31,8 @@ export default async function OwnersPage({ searchParams }: { searchParams: Promi
   const [{ data: allPos }, { data: allCo }, { data: allRep }, { data: allLines }, { data: checks }] = await Promise.all([
     supabase.from('pos_daily').select('business_id, total_sales').eq('business_date', date).in('business_id', ids),
     supabase.from('closeout_results').select('business_id, deposit_amount, difference').eq('business_date', date).in('business_id', ids),
-    supabase.from('owners_report').select('business_id, qb_balance, balance_status').eq('business_date', date).in('business_id', ids),
+    supabase.from('owners_report').select('business_id, business_date, qb_balance, balance_status, bank_balance, outstanding_total, entered_by, source')
+      .lte('business_date', date).gte('business_date', addDays(date, -60)).in('business_id', ids).order('business_date', { ascending: false }),
     supabase.from('ledger_lines').select('business_id, debit').eq('business_date', date).in('business_id', ids),
     supabase.from('ledger_lines').select('business_id, business_date, check_number, check_date, debit, distributors(name)')
       .eq('line_type', 'distributor_check').gte('business_date', monthStart).lte('business_date', addDays(monthStart, 40)).in('business_id', ids).order('check_date'),
@@ -42,6 +43,9 @@ export default async function OwnersPage({ searchParams }: { searchParams: Promi
   for (const c of cs) byDist.set(c.distributors?.name ?? '—', (byDist.get(c.distributors?.name ?? '—') ?? 0) + Number(c.debit));
   const name = (id: string) => stores?.find((s) => s.id === id)?.name ?? '';
   const isInvestor = me.role === 'investor';
+  // The QuickBooks balance isn't uploaded every day (weekends, holidays): show the most recent one, with its date
+  const latestRep = (id: string) => allRep?.find((x) => x.business_id === id);
+  const rep = store ? (day?.rep ? { ...day.rep, business_date: date } : latestRep(store.id) ?? null) : null;
 
   return (
     <>
@@ -75,14 +79,14 @@ export default async function OwnersPage({ searchParams }: { searchParams: Promi
             </section>
             <section className="card" style={{ flex: '1.3 1 460px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div className="row between">
-                <div><div className="small muted">WSFS · QuickBooks balance</div>
-                  <div className="num" style={{ fontSize: 32, fontWeight: 600, color: 'var(--green)' }}>{day.rep ? money(day.rep.qb_balance) : 'Not entered yet'}</div></div>
-                {day.rep && <span className={`pill ${STATUS[day.rep.balance_status][0]}`}>{STATUS[day.rep.balance_status][1]}</span>}
+                <div><div className="small muted">WSFS · QuickBooks balance{rep && rep.business_date !== date ? ` · as of ${shortDate(rep.business_date)}` : ''}</div>
+                  <div className="num" style={{ fontSize: 32, fontWeight: 600, color: 'var(--green)' }}>{rep ? money(rep.qb_balance) : 'Not entered yet'}</div></div>
+                {rep && STATUS[rep.balance_status] && <span className={`pill ${STATUS[rep.balance_status][0]}`}>{STATUS[rep.balance_status][1]}</span>}
               </div>
-              {day.rep?.bank_balance != null && <span className="small muted num">Bank balance {money(day.rep.bank_balance)} · outstanding payments {money(day.rep.outstanding_total)}</span>}
+              {rep?.bank_balance != null && <span className="small muted num">Bank balance {money(rep.bank_balance)} · outstanding payments {money(rep.outstanding_total)}</span>}
               <OutstandingTable items={outstanding} date={date} />
               {day.lines.length > 0 && <LedgerTable day={day} />}
-              {day.rep && <span className="small muted">Entered by {day.rep.entered_by}</span>}
+              {rep && <span className="small muted">{rep.source === 'QuickBooks register' ? 'From the QuickBooks register uploaded' : 'Entered'} by {rep.entered_by}</span>}
             </section>
           </div>
         )}
@@ -95,15 +99,15 @@ export default async function OwnersPage({ searchParams }: { searchParams: Promi
               <tbody>
                 {(stores ?? []).map((s) => {
                   const p = allPos?.find((x) => x.business_id === s.id); const c = allCo?.find((x) => x.business_id === s.id);
-                  const r = allRep?.find((x) => x.business_id === s.id);
+                  const r = latestRep(s.id);
                   const deb = (allLines ?? []).filter((l) => l.business_id === s.id).reduce((a, l) => a + Number(l.debit), 0);
                   return (
                     <tr key={s.id}>
                       <td><a href={`/owners?store=${s.id}&date=${date}`}><strong>{s.name}</strong></a></td>
                       <td className="r">{money(p?.total_sales)}</td><td className="r">{c ? money(c.deposit_amount) : '—'}</td>
                       <td className="r">{c?.difference != null ? signedMoney(c.difference) : '—'}</td>
-                      <td className="r">{r ? money(r.qb_balance) : '—'}</td><td className="r">{deb ? money(deb) : '—'}</td>
-                      <td>{r ? <span className="pill good">✓ Entered</span> : <span className="pill warn">Not entered</span>}</td>
+                      <td className="r">{r ? money(r.qb_balance) : '—'}{r && r.business_date !== date ? <div className="small muted">as of {shortDate(r.business_date)}</div> : null}</td><td className="r">{deb ? money(deb) : '—'}</td>
+                      <td>{r && r.business_date === date ? <span className="pill good">✓ Entered</span> : <span className="pill warn">Not entered</span>}</td>
                     </tr>
                   );
                 })}

@@ -1,7 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
-import { longDate, money } from '@/lib/format';
+import { longDate, money, signedMoney } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,12 +9,15 @@ export default async function InvestmentsPage() {
   const me = await requireRole('investor');
   const supabase = await supabaseServer();
   const [{ data: self }, { data: biz }, { data: portfolios }] = await Promise.all([
-    supabase.from('app_users').select('display_name, can_see_sales, can_see_owners').eq('email', me.email).single(),
+    supabase.from('app_users').select('display_name, can_see_sales, can_see_owners, can_see_cash').eq('email', me.email).single(),
     supabase.from('businesses').select('id, name, portfolio_id').eq('active', true).order('name'),
     supabase.from('portfolios').select('id, name, status').order('sort'),
   ]);
   const { data: latest } = self?.can_see_sales
     ? await supabase.from('pos_daily').select('business_id, business_date, total_sales, profit_pct').order('business_date', { ascending: false }).limit(100)
+    : { data: [] };
+  const { data: cash } = self?.can_see_cash
+    ? await supabase.from('closeout_results').select('business_id, business_date, deposit_amount, difference').order('business_date', { ascending: false }).limit(100)
     : { data: [] };
   const groups = (portfolios ?? []).map((p) => ({ ...p, list: (biz ?? []).filter((b) => b.portfolio_id === p.id) })).filter((g) => g.list.length);
 
@@ -25,9 +28,9 @@ export default async function InvestmentsPage() {
         <div>
           <div className="eyebrow">Welcome{self?.display_name ? `, ${self.display_name}` : ''}</div>
           <h1>Your investments</h1>
-          <span className="small muted">You see only the businesses One Speed has shared with you.</span>
+          <span className="small muted">You see only the businesses OneSpeed has shared with you.</span>
         </div>
-        {groups.length === 0 && <div className="notice warn">Nothing has been shared with you yet. Contact One Speed Management.</div>}
+        {groups.length === 0 && <div className="notice warn">Nothing has been shared with you yet. Contact OneSpeed Management.</div>}
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', alignItems: 'start' }}>
           {groups.map((g) => (
             <section key={g.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: `4px solid ${g.status === 'live' ? 'var(--green)' : 'var(--gold)'}` }}>
@@ -37,7 +40,11 @@ export default async function InvestmentsPage() {
                 return (
                   <div key={b.id} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <strong>{b.name}</strong>
-                    {self?.can_see_sales && <span className="small muted num">{d ? `${longDate(d.business_date)}: sales ${money(d.total_sales)} · profit ${d.profit_pct}%` : 'Reports appear here once data is in.'}</span>}
+                    {self?.can_see_sales && <span className="small muted num">{d ? <>{longDate(d.business_date)}: sales <strong style={{ color: 'var(--green)', fontSize: 15 }}>{money(d.total_sales)}</strong> · profit {d.profit_pct}%</> : 'Reports appear here once data is in.'}</span>}
+                    {self?.can_see_cash && (() => {
+                      const c = cash?.find((r) => r.business_id === b.id);
+                      return <span className="small muted num">{c ? <>{longDate(c.business_date)}: cash deposited <strong style={{ color: 'var(--text)' }}>{money(c.deposit_amount)}</strong>{c.difference != null ? <> · {Number(c.difference) === 0 ? 'matched' : Number(c.difference) < 0 ? 'short' : 'over'} {signedMoney(c.difference)}</> : null}</> : 'No cash close-out yet.'}</span>;
+                    })()}
                     <div className="row">
                       {self?.can_see_sales && <a className="btn secondary" href="/dashboard" style={{ textDecoration: 'none', minHeight: 38, padding: '6px 12px' }}>Sales dashboard</a>}
                       {self?.can_see_owners && <a className="btn secondary" href={`/owners?store=${b.id}`} style={{ textDecoration: 'none', minHeight: 38, padding: '6px 12px' }}>Owners Report</a>}
@@ -48,7 +55,7 @@ export default async function InvestmentsPage() {
             </section>
           ))}
         </div>
-        <p className="small muted">Questions about a number? Contact One Speed Management. This view is read only.</p>
+        <p className="small muted">Questions about a number? Contact OneSpeed Management. This view is read only.</p>
       </main>
     </>
   );

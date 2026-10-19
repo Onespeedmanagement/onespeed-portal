@@ -1,6 +1,6 @@
-# One Speed Management Portal
+# OneSpeed Management Portal
 
-Private portal for One Speed Management: sales dashboards, daily cash close-outs,
+Private portal for OneSpeed Management: sales dashboards, daily cash close-outs,
 bookkeeping, the Owners Report and investor views across Wine & Spirits, Goddard Schools and Hotels.
 
 ## Stack

@@ -20,7 +20,7 @@ export default function LoginPage() {
     <main style={{ minHeight: '100vh', background: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 16px' }}>
       <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 28, alignItems: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div className="serif" style={{ fontSize: 44, fontWeight: 700, color: '#fff' }}>One Speed</div>
+          <div className="serif" style={{ fontSize: 44, fontWeight: 700, color: '#fff' }}>OneSpeed</div>
           <div className="eyebrow" style={{ color: 'var(--gold)', letterSpacing: 3 }}>Management Portal</div>
         </div>
         <div className="card" style={{ width: '100%', background: 'var(--cream)', display: 'flex', flexDirection: 'column', gap: 18, padding: 32 }}>

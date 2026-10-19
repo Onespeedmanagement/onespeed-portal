@@ -1,5 +1,5 @@
 /**
- * One Speed Portal — POS email pickup and morning summary.
+ * OneSpeed Portal — POS email pickup and morning summary.
  * Runs in the Google account that receives posreports@onespeedmanagement.com mail.
  *
  * Script properties (Project Settings → Script properties):
@@ -55,7 +55,7 @@ function getSummary_() {
 function sendMorningSummary() {
   processInbox();                       // pick up anything that just arrived
   const s = getSummary_();
-  MailApp.sendEmail({ to: props_().admins, subject: s.subject, htmlBody: s.html, name: 'One Speed Portal' });
+  MailApp.sendEmail({ to: props_().admins, subject: s.subject, htmlBody: s.html, name: 'OneSpeed Portal' });
   sendContractReminders();
 }
 
@@ -65,7 +65,7 @@ function sendContractReminders() {
   const res = UrlFetchApp.fetch(cfg.url + '/api/reminders', { headers: { 'x-portal-secret': cfg.secret }, muteHttpExceptions: true });
   if (res.getResponseCode() !== 200) { Logger.log('Reminders failed: ' + res.getResponseCode()); return; }
   JSON.parse(res.getContentText()).emails.forEach(function (e) {
-    MailApp.sendEmail({ to: e.to, subject: e.subject, htmlBody: e.html, name: 'One Speed Portal' });
+    MailApp.sendEmail({ to: e.to, subject: e.subject, htmlBody: e.html, name: 'OneSpeed Portal' });
   });
 }
 
@@ -74,6 +74,6 @@ function checkMissingAtNoon() {
   const s = getSummary_();
   if (s.missing && s.missing.length) {
     MailApp.sendEmail({ to: props_().admins, subject: '⚠ Still missing POS report: ' + s.missing.join(', '),
-      htmlBody: s.html + '<p>Call the POS vendor, or upload the report on the portal\'s Upload page.</p>', name: 'One Speed Portal' });
+      htmlBody: s.html + '<p>Call the POS vendor, or upload the report on the portal\'s Upload page.</p>', name: 'OneSpeed Portal' });
   }
 }

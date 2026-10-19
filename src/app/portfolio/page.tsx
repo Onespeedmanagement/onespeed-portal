@@ -50,7 +50,7 @@ export default async function PortfolioPage() {
                     <div key={b.id} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10 }}>
                       <strong>{b.name}</strong>
                       <div className="small muted num">
-                        {d ? `${longDate(d.business_date)}: sales ${money(d.total_sales)} · profit ${d.profit_pct}% · cash ${money(d.cash_sales)}`
+                        {d ? <>{longDate(d.business_date)}: sales <strong style={{ color: 'var(--green)', fontSize: 15 }}>{money(d.total_sales)}</strong> · profit {d.profit_pct}% · cash {money(d.cash_sales)}</>
                            : 'Waiting for the first POS report'}
                       </div>
                     </div>
@@ -60,7 +60,6 @@ export default async function PortfolioPage() {
             );
           })}
         </div>
-        <p className="small muted">Dashboard, Daily view, Owners Report and Discrepancies are being built next.</p>
       </main>
     </>
   );

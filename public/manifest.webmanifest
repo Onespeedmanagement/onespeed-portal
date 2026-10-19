@@ -1,6 +1,6 @@
 {
-  "name": "One Speed Management Portal",
-  "short_name": "One Speed",
+  "name": "OneSpeed Management Portal",
+  "short_name": "OneSpeed",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f3e8",

@@ -1,7 +1,6 @@
 const LINKS = [
   ['/portfolio', 'Portfolio'],
   ['/dashboard', 'Dashboard'],
-  ['/daily', 'Daily view'],
   ['/owners', 'Owners Report'],
   ['/cash', 'Cash & deposits'],
   ['/discrepancies', 'Discrepancies'],

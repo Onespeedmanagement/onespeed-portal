@@ -15,6 +15,18 @@ const shiftYear = (d: string, n: number) => {
   const y = Number(d.slice(0, 4)) + n, m = Number(d.slice(5, 7)), day = Math.min(Number(d.slice(8, 10)), lastDayOf(y, m));
   return iso(y, m, day);
 };
+// "Oct 14, 16" or "Oct 3–5, 9"
+const missingLabel = (days: string[]) => {
+  const mon = new Date(`${days[0]}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+  const nums = days.map((d) => Number(d.slice(8, 10)));
+  const parts: string[] = [];
+  for (let i = 0; i < nums.length; ) {
+    let j = i; while (j + 1 < nums.length && nums[j + 1] === nums[j] + 1) j++;
+    parts.push(j > i + 1 ? `${nums[i]}–${nums[j]}` : j === i + 1 ? `${nums[i]}, ${nums[j]}` : `${nums[i]}`);
+    i = j + 1;
+  }
+  return `${mon} ${parts.join(', ')}`;
+};
 const monthLabel = (y: number, m: number) => new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string; metric?: string }> }) {
@@ -36,6 +48,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const pqStart = q === 0 ? iso(y - 1, 10, 1) : iso(y, (q - 1) * 3 + 1, 1);
   const pqEnd = minIso(addDays(pqStart, qDays), addDays(qStart, -1));
   const yStart = iso(y, 1, 1);
+  const monthDays = Array.from({ length: elapsed }, (_, i) => iso(y, m, i + 1));
 
   const supabase = await supabaseServer();
   const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
@@ -76,19 +89,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
         <section className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
           {(stores ?? []).map((s) => {
-            const cur = total(rows, s.id, monthStart, monthEnd), ly = total(rows, s.id, shiftYear(monthStart, -1), shiftYear(monthEnd, -1)), pv = total(rows, s.id, prevStart, prevEnd);
+            const cur = total(rows, s.id, monthStart, monthEnd), ly = total(rows, s.id, shiftYear(monthStart, -1), shiftYear(monthEnd, -1));
+            const have = new Set(rows.filter((r) => r.business_id === s.id).map((r) => r.business_date));
+            const missing = monthDays.filter((d) => !have.has(d));
             return (
               <article key={s.id} className="card num" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <strong style={{ fontSize: 17 }}>{s.name}</strong>
                 <div style={{ fontSize: 26, fontWeight: 600, color: 'var(--green)' }}>{fmt(cur, 'sales')}</div>
                 <div className="small muted">{periods[0].sub} · revenue</div>
-                <div className="small">YOY <Change c={change(cur, ly, 'sales')} /> · MOM <Change c={change(cur, pv, 'sales')} /></div>
+                <div className="small">YOY <Change c={change(cur, ly, 'sales')} /></div>
                 <div className="grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8 }}>
                   <div className="small"><div className="muted">Customers</div><strong>{fmt(cur, 'customers')}</strong><div><Change c={change(cur, ly, 'customers')} /></div></div>
                   <div className="small"><div className="muted">Avg ticket</div><strong>{fmt(cur, 'ticket')}</strong><div><Change c={change(cur, ly, 'ticket')} /></div></div>
                   <div className="small"><div className="muted">Margin</div><strong>{fmt(cur, 'margin')}</strong><div><Change c={change(cur, ly, 'margin')} /></div></div>
                 </div>
-                <span className="small muted">{cur.hist ? 'Monthly totals from sales history' : `${cur.days} days of POS data`}{ly.days === 0 ? ' · last year not loaded yet' : ly.hist ? ' · last year from sales history' : ''}</span>
+                {cur.hist ? <span className="small muted">Monthly totals from sales history</span>
+                  : missing.length === 0 ? <span className="small" style={{ color: 'var(--green)' }}>✓ All {monthDays.length} days in</span>
+                  : <span className="small" style={{ color: 'var(--bad)' }}><strong>⚠ Missing {missing.length === 1 ? 'day' : `${missing.length} days`}:</strong> {missingLabel(missing)}</span>}
+                <span className="small muted">{ly.days === 0 ? 'Last year not loaded yet' : ly.hist ? 'Last year from sales history' : ''}</span>
               </article>
             );
           })}

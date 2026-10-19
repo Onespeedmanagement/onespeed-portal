@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'One Speed Management Portal',
-  description: 'Reports, cash close-outs and bookkeeping for One Speed Management.',
+  title: 'OneSpeed Management Portal',
+  description: 'Reports, cash close-outs and bookkeeping for OneSpeed Management.',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'One Speed', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'OneSpeed', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = { themeColor: '#1f3d2b', width: 'device-width', initialScale: 1 };
