@@ -11,10 +11,11 @@ export async function saveUser(_p: FormState, form: FormData): Promise<FormState
   const email = String(form.get('email') || '').trim().toLowerCase();
   const role = String(form.get('role'));
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: 'Enter a valid Google email address.' };
-  if (!['admin', 'bookkeeper', 'manager', 'investor'].includes(role)) return { error: 'Pick a role.' };
+  if (!['admin', 'bookkeeper', 'manager', 'investor', 'school_bookkeeper'].includes(role)) return { error: 'Pick a role.' };
   if (email === me.email && role !== 'admin') return { error: 'You can’t remove your own admin access.' };
   const businessIds = form.getAll('business_id').map(String);
-  if ((role === 'manager' || role === 'investor') && businessIds.length === 0) return { error: `Pick at least one ${role === 'manager' ? 'store' : 'business'}.` };
+  const scoped = role === 'manager' || role === 'investor' || role === 'school_bookkeeper';
+  if (scoped && businessIds.length === 0) return { error: `Pick at least one ${role === 'manager' ? 'store' : role === 'school_bookkeeper' ? 'school' : 'business'}.` };
 
   const supabase = await supabaseServer();
   const { error } = await supabase.from('app_users').upsert({
@@ -23,7 +24,7 @@ export async function saveUser(_p: FormState, form: FormData): Promise<FormState
   });
   if (error) return { error: 'Couldn’t save this person.' };
   await supabase.from('business_access').delete().eq('email', email);
-  if (role === 'manager' || role === 'investor') {
+  if (scoped) {
     const { error: e2 } = await supabase.from('business_access').insert(businessIds.map((business_id) => ({ email, business_id })));
     if (e2) return { error: 'Saved the person, but their access didn’t save. Try again.' };
   }

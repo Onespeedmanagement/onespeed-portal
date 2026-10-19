@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 type Row = { page: string; ok: boolean; what: string };
 
 const HOME_LABEL: Record<Role, string> = {
-  admin: 'Portfolio', bookkeeper: 'Bookkeeper · Daily entries', manager: 'Close-out', investor: 'Your investments',
+  admin: 'Portfolio', bookkeeper: 'Bookkeeper · Daily entries', manager: 'Close-out', investor: 'Your investments', school_bookkeeper: 'Goddard Schools',
 };
 
 function pagesFor(role: Role, u: { can_see_sales: boolean; can_see_owners: boolean; can_see_cash: boolean }, stores: string): Row[] {
@@ -41,6 +41,13 @@ function pagesFor(role: Role, u: { can_see_sales: boolean; can_see_owners: boole
         { page: 'Cash', ok: u.can_see_cash, what: u.can_see_cash ? 'Latest cash deposited and whether it was matched, short or over.' : '' },
         { page: 'Owners Report', ok: u.can_see_owners, what: u.can_see_owners ? 'QuickBooks balance, outstanding checks, payments and distributor checks, by day.' : '' },
         no('Portfolio'), no('Discrepancies'), no('Users & employees'), no('Contracts'), no('Editing anything'),
+      ];
+    case 'school_bookkeeper':
+      return [
+        { page: 'Goddard Schools', ok: true, what: `${stores || 'No school assigned'}. Revenue, expenses, operating income and the 12-month trend.` },
+        { page: 'Upload financials', ok: true, what: 'Uploads the FMS Monthly Financial Report (school and month are read from the PDF; re-uploading a month replaces it).' },
+        { page: 'School reports', ok: true, what: 'Uploads and opens Forecasted Billing, New families, A/R Ledger and Deposit History for their school(s).' },
+        no('Liquor stores (any page)'), no('Other schools'), no('Adding schools'), no('Users & employees'), no('Contracts'),
       ];
   }
 }
@@ -87,7 +94,7 @@ export default async function ViewAccessPage({ searchParams }: { searchParams: P
           <>
             <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div><span className="muted small">Lands on</span> <strong>{HOME_LABEL[u.role as Role]}</strong> <span className="small muted">({homeFor(u.role as Role)})</span></div>
-              <div><span className="muted small">Stores</span> <strong>{u.role === 'admin' || u.role === 'bookkeeper' ? 'All stores' : stores || 'None'}</strong></div>
+              <div><span className="muted small">Stores</span> <strong>{u.role === 'admin' ? 'Everything' : u.role === 'bookkeeper' ? 'All liquor stores' : stores || 'None'}</strong></div>
               {u.role === 'investor' && (
                 <div className="row" style={{ gap: 6 }}>
                   {(['sales', 'owners', 'cash'] as const).map((k) => (

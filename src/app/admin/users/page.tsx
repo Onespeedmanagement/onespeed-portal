@@ -8,7 +8,7 @@ import { employeeAction, setActive } from './actions';
 export const dynamic = 'force-dynamic';
 
 const ROLE: Record<string, [string, string]> = {
-  admin: ['Admin', 'var(--green)'], bookkeeper: ['Bookkeeper', '#3b6450'], manager: ['Store manager', '#8a6a1e'], investor: ['Investor', '#2b3e66'],
+  admin: ['Admin', 'var(--green)'], bookkeeper: ['Bookkeeper', '#3b6450'], manager: ['Store manager', '#8a6a1e'], investor: ['Investor', '#2b3e66'], school_bookkeeper: ['Goddard bookkeeper', '#5b4a7a'],
 };
 
 export default async function UsersPage({ searchParams }: { searchParams: Promise<{ edit?: string; saved?: string; emp_store?: string }> }) {
@@ -51,7 +51,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                   <tr key={u.email} style={{ opacity: u.active ? 1 : 0.55 }}>
                     <td><strong>{u.email}</strong>{u.display_name ? <div className="small muted">{u.display_name}</div> : null}</td>
                     <td><span className="pill" style={{ background: ROLE[u.role][1], color: '#fff' }}>{ROLE[u.role][0]}</span></td>
-                    <td className="small">{u.role === 'admin' ? 'Everything' : u.role === 'bookkeeper' ? 'All stores · daily entries, Owners Report entry'
+                    <td className="small">{u.role === 'admin' ? 'Everything' : u.role === 'bookkeeper' ? 'All liquor stores · daily entries, Owners Report entry'
                       : mine.join(', ') || '—'}
                       {u.role === 'investor' && <div className="muted">{[u.can_see_sales && 'sales', u.can_see_owners && 'owners report', u.can_see_cash && 'cash'].filter(Boolean).join(' · ') || 'nothing selected'}</div>}</td>
                     <td>{u.active ? <span className="pill good">Active</span> : <span className="pill warn">Off</span>}</td>

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { supabaseServer, VIEW_AS_COOKIE } from './supabase/server';
 
-export type Role = 'admin' | 'bookkeeper' | 'manager' | 'investor';
+export type Role = 'admin' | 'bookkeeper' | 'manager' | 'investor' | 'school_bookkeeper';
 // viewingAs = the admin's own email while they use "View as"
 export type Me = { email: string; role: Role; displayName: string | null; viewingAs?: string };
 
@@ -28,12 +28,15 @@ export async function getMe(): Promise<Me | null> {
   return real;
 }
 
+export const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', bookkeeper: 'Bookkeeper', manager: 'Manager', investor: 'Investor', school_bookkeeper: 'Goddard bookkeeper' };
+
 export function homeFor(role: Role): string {
   switch (role) {
     case 'admin': return '/portfolio';
     case 'bookkeeper': return '/bookkeeper';
     case 'manager': return '/closeout';
     case 'investor': return '/investments';
+    case 'school_bookkeeper': return '/goddard';
   }
 }
 

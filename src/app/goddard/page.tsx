@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { RoleNav } from '@/components/RoleNav';
+import { ROLE_LABEL } from '@/lib/auth';
 import { Change } from '@/components/Change';
 import { addMonthsIso, afterDebt, collected, loadMonths, loadSchools, margin, monthName, pct, type SchoolMonth } from '@/lib/goddard/schools';
 
@@ -12,7 +13,7 @@ const usd = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleStr
 const pc = (n: number | null) => (n == null ? '—' : `${n.toFixed(1)}%`);
 
 export default async function GoddardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
-  const me = await requireRole('admin', 'investor');
+  const me = await requireRole('admin', 'investor', 'school_bookkeeper');
   const sp = await searchParams;
   const supabase = await supabaseServer();
   const { schools } = await loadSchools(supabase);
@@ -24,7 +25,7 @@ export default async function GoddardPage({ searchParams }: { searchParams: Prom
   const trendMonths = month ? Array.from({ length: 12 }, (_, i) => addMonthsIso(month, i - 11)) : [];
   const { data: allMonths } = ids.length ? await supabase.from('school_months').select('month').in('business_id', ids).order('month', { ascending: false }).limit(400) : { data: [] };
   const monthOpts = [...new Set((allMonths ?? []).map((m) => m.month))];
-  const canUpload = me.role === 'admin';
+  const canUpload = me.role === 'admin' || me.role === 'school_bookkeeper';
   const isInvestor = me.role === 'investor';
 
   const total = (ms: (SchoolMonth | undefined)[]) => {
@@ -36,7 +37,7 @@ export default async function GoddardPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <TopBar subtitle={isInvestor ? 'Investor Portal' : 'Goddard Schools'} who={`${me.email} · ${me.role[0].toUpperCase() + me.role.slice(1)}`} />
+      <TopBar subtitle={isInvestor ? 'Investor Portal' : 'Goddard Schools'} who={`${me.email} · ${ROLE_LABEL[me.role]}`} />
       <RoleNav role={me.role} active="/goddard" />
       <main className="page" style={{ maxWidth: 1360 }}>
         <div className="row between">

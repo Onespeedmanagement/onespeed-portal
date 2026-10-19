@@ -20,14 +20,14 @@ export function UserForm({ businesses, user, access }: { businesses: Biz[]; user
         <div className="field"><label htmlFor="role">Role</label>
           <select id="role" name="role" value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="manager">Store manager</option><option value="investor">Investor</option>
-            <option value="bookkeeper">Bookkeeper</option><option value="admin">Admin</option>
+            <option value="bookkeeper">Bookkeeper (stores)</option><option value="school_bookkeeper">Goddard bookkeeper</option><option value="admin">Admin</option>
           </select></div>
       </div>
-      {(role === 'manager' || role === 'investor') && (
+      {(role === 'manager' || role === 'investor' || role === 'school_bookkeeper') && (
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend style={{ fontWeight: 500, fontSize: 14, marginBottom: 6 }}>{role === 'manager' ? 'Store(s) they manage' : 'Businesses they can see'}</legend>
+          <legend style={{ fontWeight: 500, fontSize: 14, marginBottom: 6 }}>{role === 'manager' ? 'Store(s) they manage' : role === 'school_bookkeeper' ? 'School(s) they keep the books for' : 'Businesses they can see'}</legend>
           <div className="grid">
-            {portfolios.map((p) => (
+            {portfolios.filter((p) => role !== 'school_bookkeeper' || /goddard/i.test(p)).map((p) => (
               <div key={p}><strong className="small">{p}</strong>
                 {businesses.filter((b) => b.portfolio === p).map((b) => (
                   <label key={b.id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 400, padding: '6px 0' }}>

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { RoleNav } from '@/components/RoleNav';
+import { ROLE_LABEL } from '@/lib/auth';
 import { Change } from '@/components/Change';
 import { addMonthsIso, afterDebt, collected, FILE_KINDS, loadMonths, margin, monthName, pct, type Line, type SchoolMonth } from '@/lib/goddard/schools';
 import { deleteSchoolFile } from '../upload/actions';
@@ -15,7 +16,7 @@ const pc = (n: number | null) => (n == null ? '—' : `${n.toFixed(1)}%`);
 const amt = (ls: Line[] | undefined, label: string) => ls?.find((l) => l.label === label)?.amount ?? null;
 
 export default async function SchoolPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ month?: string }> }) {
-  const me = await requireRole('admin', 'investor');
+  const me = await requireRole('admin', 'investor', 'school_bookkeeper');
   const { id } = await params;
   const sp = await searchParams;
   const supabase = await supabaseServer();
@@ -31,7 +32,7 @@ export default async function SchoolPage({ params, searchParams }: { params: Pro
   const avg3 = (label: string) => last3.length ? last3.reduce((a, m) => a + (amt(m.expenses, label) ?? 0), 0) / last3.length : null;
   const { data: files } = await supabase.from('school_files').select('id, kind, filename, month, uploaded_by, uploaded_at').eq('business_id', id)
     .gte('month', addMonthsIso(month, -1)).lte('month', addMonthsIso(month, 1)).order('uploaded_at', { ascending: false });
-  const canUpload = me.role === 'admin';
+  const canUpload = me.role === 'admin' || me.role === 'school_bookkeeper';
   const isInvestor = me.role === 'investor';
 
   // Things worth a look
@@ -53,7 +54,7 @@ export default async function SchoolPage({ params, searchParams }: { params: Pro
 
   return (
     <>
-      <TopBar subtitle={isInvestor ? 'Investor Portal' : 'Goddard Schools'} who={`${me.email} · ${me.role[0].toUpperCase() + me.role.slice(1)}`} />
+      <TopBar subtitle={isInvestor ? 'Investor Portal' : 'Goddard Schools'} who={`${me.email} · ${ROLE_LABEL[me.role]}`} />
       <RoleNav role={me.role} active="/goddard" />
       <main className="page" style={{ maxWidth: 1240 }}>
         <div className="row between">

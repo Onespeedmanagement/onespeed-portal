@@ -9,14 +9,14 @@ import { FmsUpload } from './FmsUpload';
 export const dynamic = 'force-dynamic';
 
 export default async function GoddardUploadPage() {
-  const me = await requireRole('admin');
+  const me = await requireRole('admin', 'school_bookkeeper');
   const supabase = await supabaseServer();
   const { schools } = await loadSchools(supabase);
   const { data: months } = await supabase.from('school_months').select('business_id, month').order('month', { ascending: false }).limit(500);
   return (
     <>
-      <TopBar subtitle="Goddard Schools" who={`${me.email} · Admin`} />
-      <RoleNav role={me.role} active="/goddard" />
+      <TopBar subtitle="Goddard Schools" who={`${me.email} · ${me.role === 'admin' ? 'Admin' : 'Goddard bookkeeper'}`} />
+      <RoleNav role={me.role} active={me.role === 'admin' ? '/goddard' : '/goddard/upload'} />
       <main className="page">
         <div>
           <Link href="/goddard" className="small">← Goddard Schools</Link>
