@@ -81,6 +81,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <article key={s.id} className="card num" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <strong style={{ fontSize: 17 }}>{s.name}</strong>
                 <div style={{ fontSize: 26, fontWeight: 600, color: 'var(--green)' }}>{fmt(cur, 'sales')}</div>
+                <div className="small muted">{periods[0].sub} · revenue</div>
                 <div className="small">YOY <Change c={change(cur, ly, 'sales')} /> · MOM <Change c={change(cur, pv, 'sales')} /></div>
                 <div className="grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8 }}>
                   <div className="small"><div className="muted">Customers</div><strong>{fmt(cur, 'customers')}</strong><div><Change c={change(cur, ly, 'customers')} /></div></div>
