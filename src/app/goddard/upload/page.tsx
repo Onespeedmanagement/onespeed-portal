@@ -25,7 +25,7 @@ export default async function GoddardUploadPage() {
         <FmsUpload isAdmin={me.role === 'admin'} />
         <section className="card">
           <h2 style={{ marginBottom: 8 }}>Loaded so far</h2>
-          {schools.length === 0 ? <p className="muted">No schools yet. Upload a report and add the school from the result.</p> : schools.map((s) => {
+          {schools.length === 0 ? <p className="muted">No schools yet. Upload a school’s report and it’s added automatically.</p> : schools.map((s) => {
             const ms = (months ?? []).filter((m) => m.business_id === s.id).map((m) => m.month);
             return (
               <div key={s.id} className="row between" style={{ padding: '8px 0', borderBottom: '1px solid var(--line-soft)' }}>

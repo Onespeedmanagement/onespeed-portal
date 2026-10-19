@@ -58,7 +58,7 @@ export default async function GoddardPage({ searchParams }: { searchParams: Prom
           </div>
         </div>
 
-        {schools.length === 0 && <div className="notice warn">{canUpload ? 'No schools yet. Upload an FMS Monthly Financial Report and add the school from the result.' : 'No schools have been shared with you yet.'}</div>}
+        {schools.length === 0 && <div className="notice warn">{canUpload ? 'No schools yet. Upload a school’s FMS Monthly Financial Report and the school is added automatically.' : 'No schools have been shared with you yet.'}</div>}
         {schools.length > 0 && !month && <div className="notice warn">No monthly reports loaded yet.{canUpload ? ' Upload the FMS Monthly Financial Report to get started.' : ''}</div>}
 
         {month && (

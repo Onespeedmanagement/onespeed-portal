@@ -21,6 +21,7 @@ export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<Fms
   if (files.length > 30) return [{ filename: '', status: 'error', message: 'Upload at most 30 files at a time.' }];
   const supabase = await supabaseServer();
   const { schools } = await loadSchools(supabase);
+  const { portfolio, schools: allSchools } = me.role === 'admin' ? await loadSchools(supabase, true) : { portfolio: null, schools: [] };
   const out: FmsResult[] = [];
 
   for (const f of files) {
@@ -31,8 +32,25 @@ export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<Fms
     try { r = await parseFms(bytes.slice()); } catch (e) { out.push({ filename: f.name, status: 'error', message: (e as Error).message }); continue; }
 
     // Match the school by its Goddard number "(#1230)" first, then by name
-    const school = schools.find((s) => r.schoolNumber && (s.pos_match ?? '').replace(/\D/g, '') === r.schoolNumber)
+    let school = schools.find((s) => r.schoolNumber && (s.pos_match ?? '').replace(/\D/g, '') === r.schoolNumber)
       ?? schools.find((s) => r.schoolName && s.name.toLowerCase().includes(r.schoolName.split(',')[0].toLowerCase()));
+    let added = false;
+    // New school number: admins get it added automatically, named as on the report
+    if (!school && portfolio && r.schoolName) {
+      const inactive = allSchools.find((s) => r.schoolNumber && (s.pos_match ?? '').replace(/\D/g, '') === r.schoolNumber);
+      if (inactive) {
+        await supabase.from('businesses').update({ active: true }).eq('id', inactive.id);
+        school = { ...inactive, active: true };
+      } else {
+        const { data: created, error: addErr } = await supabase.from('businesses')
+          .insert({ name: r.schoolName, portfolio_id: portfolio.id, pos_match: r.schoolNumber ? `#${r.schoolNumber}` : null })
+          .select('id, name, pos_match, active').single();
+        if (addErr) { out.push({ filename: f.name, status: 'error', message: `Couldn’t add ${r.schoolName} as a school: ${addErr.message}` }); continue; }
+        school = created;
+      }
+      schools.push(school!);
+      added = true;
+    }
     if (!school) {
       out.push({ filename: f.name, status: 'unknown_school', message: `This report is for ${r.schoolName} (#${r.schoolNumber ?? '?'}), which isn’t set up yet.`,
         schoolName: r.schoolName, schoolNumber: r.schoolNumber, month: r.month });
@@ -68,7 +86,7 @@ export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<Fms
 
     out.push({
       filename: f.name, status: existing ? 'updated' : 'saved', school: school.name, schoolId: school.id, month: r.month,
-      message: `${monthName(r.month)}: revenue ${usd(r.revenue)} · operating income ${usd(r.operatingIncome)}${existing ? ' (replaced the earlier upload)' : ''}${failed.length ? ' · saved anyway' : ''}${upErr ? ' · the PDF itself didn’t store' : ''}`,
+      message: `${added ? 'New school added. ' : ''}${monthName(r.month)}: revenue ${usd(r.revenue)} · operating income ${usd(r.operatingIncome)}${existing ? ' (replaced the earlier upload)' : ''}${failed.length ? ' · saved anyway' : ''}${upErr ? ' · the PDF itself didn’t store' : ''}`,
     });
   }
   revalidatePath('/goddard');
