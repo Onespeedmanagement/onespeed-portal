@@ -56,6 +56,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                       {u.role === 'investor' && <div className="muted">{[u.can_see_sales && 'sales', u.can_see_owners && 'owners report', u.can_see_cash && 'cash'].filter(Boolean).join(' · ') || 'nothing selected'}</div>}</td>
                     <td>{u.active ? <span className="pill good">Active</span> : <span className="pill warn">Off</span>}</td>
                     <td className="r" style={{ whiteSpace: 'nowrap' }}>
+                      <a href={`/admin/users/view?email=${encodeURIComponent(u.email)}`} className="btn secondary" style={{ textDecoration: 'none', minHeight: 36, padding: '6px 12px' }}>View</a>{' '}
                       <a href={`/admin/users?edit=${encodeURIComponent(u.email)}`} className="btn secondary" style={{ textDecoration: 'none', minHeight: 36, padding: '6px 12px' }}>Edit</a>{' '}
                       {u.email !== me.email && (
                         <form action={setActive} style={{ display: 'inline' }}>
