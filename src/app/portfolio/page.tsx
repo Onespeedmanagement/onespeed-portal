@@ -54,13 +54,12 @@ export default async function PortfolioPage() {
                 {list.length === 0 && (/goddard/i.test(p.name)
                   ? <span className="small muted"><Link href="/goddard/upload">Upload a school’s FMS Monthly Financial Report</Link> to add it.</span>
                   : <span className="small muted">Locations will be added here.</span>)}
-                {/goddard/i.test(p.name) && list.length > 0 && <Link href="/goddard" className="btn secondary" style={{ textDecoration: 'none', alignSelf: 'flex-start' }}>Open Goddard Schools</Link>}
                 {list.map((b: Biz) => {
                   const d = lastFor(b.id);
                   const sm = schoolFor(b.id);
                   if (!d && (sm || /goddard/i.test(p.name))) return (
                     <a key={b.id} href={`/goddard/${b.id}`} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10, textDecoration: 'none', color: 'inherit' }}>
-                      <strong>{b.name}</strong>{b.pos_match ? <span className="small muted"> · Goddard {b.pos_match}</span> : null}
+                      <div className="row between"><span><strong>{b.name}</strong>{b.pos_match ? <span className="small muted"> · Goddard {b.pos_match}</span> : null}</span><span style={{ color: 'var(--gold-text)' }}>→</span></div>
                       <div className="small muted num">{sm ? <><strong style={{ color: 'var(--text)' }}>{new Date(`${sm.month.slice(0, 7)}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</strong>: revenue <strong style={{ color: 'var(--green)', fontSize: 15 }}>{usd0(sm.revenue)}</strong> · operating income {usd0(sm.operating_income)}</> : 'Waiting for the first monthly report'}</div>
                     </a>
                   );
