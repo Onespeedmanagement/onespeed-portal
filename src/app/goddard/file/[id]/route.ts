@@ -3,7 +3,7 @@ import { getMe } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 
 // Opens a school report through a short-lived private link. The database decides
-// who may see it (admins, bookkeeper, investors with Owners Report access to that school).
+// who may see it (admins, investors with Owners Report access to that school).
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getMe();
   if (!me) return NextResponse.redirect(new URL('/no-access', request.url));

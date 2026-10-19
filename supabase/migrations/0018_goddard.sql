@@ -62,9 +62,9 @@ drop policy if exists sm_staff on school_months;
 drop policy if exists sm_investor on school_months;
 drop policy if exists sf_staff on school_files;
 drop policy if exists sf_investor on school_files;
-create policy sm_staff on school_months for all using (is_admin() or is_bookkeeper()) with check (is_admin() or is_bookkeeper());
+create policy sm_staff on school_months for all using (is_admin()) with check (is_admin());
 create policy sm_investor on school_months for select using (investor_can(business_id, 'sales') or investor_can(business_id, 'owners'));
-create policy sf_staff on school_files for all using (is_admin() or is_bookkeeper()) with check (is_admin() or is_bookkeeper());
+create policy sf_staff on school_files for all using (is_admin()) with check (is_admin());
 create policy sf_investor on school_files for select using (investor_can(business_id, 'owners'));
 
 -- Private file storage: <school id>/<month>/<file>
@@ -74,9 +74,9 @@ drop policy if exists school_reports_read on storage.objects;
 drop policy if exists school_reports_write on storage.objects;
 drop policy if exists school_reports_delete on storage.objects;
 create policy school_reports_read on storage.objects for select using (
-  bucket_id = 'school-reports' and (public.is_admin() or public.is_bookkeeper()
+  bucket_id = 'school-reports' and (public.is_admin()
     or public.investor_can(nullif((storage.foldername(name))[1], '')::uuid, 'owners')));
 create policy school_reports_write on storage.objects for insert with check (
-  bucket_id = 'school-reports' and (public.is_admin() or public.is_bookkeeper()));
+  bucket_id = 'school-reports' and public.is_admin());
 create policy school_reports_delete on storage.objects for delete using (
-  bucket_id = 'school-reports' and (public.is_admin() or public.is_bookkeeper()));
+  bucket_id = 'school-reports' and public.is_admin());
