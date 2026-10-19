@@ -36,7 +36,7 @@ export default async function DiscrepanciesPage({ searchParams }: { searchParams
   const tolerance = await getTolerance(supabase);
 
   const [{ data: stores }, { data: cos }, { data: pos }, { data: files }, { data: qs }, { data: res }, { data: changes }] = await Promise.all([
-    supabase.from('businesses').select('id, name'),
+    supabase.from('stores').select('id, name'),
     supabase.from('closeout_results').select('id, business_id, business_date, difference, cash_counted, cash_sales, submitted_by, note').gte('business_date', from).lte('business_date', to),
     supabase.from('pos_daily').select('business_id, business_date, override_note, override_by, total_sales, cash_sales').gte('business_date', from).lte('business_date', to),
     supabase.from('pos_files').select('id, business_id, business_date, filename, status, message, received_at').in('status', ['held', 'unknown_store', 'error']).gte('received_at', `${from}T00:00:00Z`),

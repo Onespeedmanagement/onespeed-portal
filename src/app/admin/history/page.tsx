@@ -15,7 +15,7 @@ export default async function HistoryPage() {
   const me = await requireRole('admin');
   const supabase = await supabaseServer();
   const [{ data: stores }, { data: hist }] = await Promise.all([
-    supabase.from('businesses').select('id, name').eq('active', true).order('name'),
+    supabase.from('stores').select('id, name').eq('active', true).order('name'),
     supabase.from('monthly_history').select('business_id, month, revenue, customers, profit_pct').order('month'),
   ]);
   const months = [...new Set((hist ?? []).map((h) => h.month))].sort();

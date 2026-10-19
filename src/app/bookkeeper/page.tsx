@@ -15,7 +15,7 @@ export default async function BookkeeperPage({ searchParams }: { searchParams: P
   const me = await requireRole('bookkeeper');
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
+  const { data: stores } = await supabase.from('stores').select('id, name').eq('active', true).order('name');
   const store = stores?.find((s) => s.id === sp.store) ?? stores?.[0];
   const days = [7, 14, 30, 60].includes(Number(sp.days)) ? Number(sp.days) : 14;
   const to = addDays(todayNY(), -1);

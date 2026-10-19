@@ -34,7 +34,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
   const me = await requireRole('manager');
   const supabase = await supabaseServer();
 
-  const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
+  const { data: stores } = await supabase.from('stores').select('id, name').eq('active', true).order('name');
   const store = stores?.find((s) => s.id === wantedStore) ?? stores?.[0];
   if (!store) {
     return (<><TopBar who={me.email} /><main className="page"><div className="notice warn">You aren&apos;t assigned to a store yet. Ask an admin.</div></main></>);

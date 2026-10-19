@@ -51,7 +51,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const monthDays = Array.from({ length: elapsed }, (_, i) => iso(y, m, i + 1));
 
   const supabase = await supabaseServer();
-  const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
+  const { data: stores } = await supabase.from('stores').select('id, name').eq('active', true).order('name');
   const ids = (stores ?? []).map((s) => s.id);
   const [rows, hist] = await Promise.all([loadPos(supabase, ids, iso(y - 1, 1, 1), monthEnd), loadHistory(supabase, ids, iso(y - 1, 1, 1), monthEnd)]);
   const total = (r: PosRow[], b: string, f: string, t: string, h: HistRow[] = hist) => totalOf(r, b, f, t, h);

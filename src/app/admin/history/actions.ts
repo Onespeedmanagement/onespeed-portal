@@ -40,7 +40,7 @@ export async function importHistory(_prev: HistoryResult | null, form: FormData)
   }
 
   const supabase = await supabaseServer();
-  const { data: businesses } = await supabase.from('businesses').select('id, name');
+  const { data: businesses } = await supabase.from('stores').select('id, name');
   const find = (code: string) => {
     const words = ALIASES[code.toLowerCase()] ?? [code.toLowerCase()];
     return (businesses ?? []).find((b) => words.some((w) => b.name.toLowerCase().includes(w))) ?? null;

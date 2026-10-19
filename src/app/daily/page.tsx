@@ -24,7 +24,7 @@ export default async function DailyPage({ searchParams }: { searchParams: Promis
   const weekStart = addDays(date, -6);
 
   const supabase = await supabaseServer();
-  const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
+  const { data: stores } = await supabase.from('stores').select('id, name').eq('active', true).order('name');
   const ids = (stores ?? []).map((s) => s.id);
   const rows = await loadPos(supabase, ids, addDays(monthStart, -400), date);
   const upcoming = [...holidaysFor(Number(todayNY().slice(0, 4))), ...holidaysFor(Number(todayNY().slice(0, 4)) + 1)].filter((h) => h.date >= todayNY()).slice(0, 5);

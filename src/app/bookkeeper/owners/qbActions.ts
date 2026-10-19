@@ -47,7 +47,7 @@ export async function previewQb(_p: QbPreview | null, form: FormData): Promise<Q
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: 'Pick the report date first.' };
 
   const supabase = await supabaseServer();
-  const { data: store } = await supabase.from('businesses').select('id, name').eq('id', businessId).maybeSingle();
+  const { data: store } = await supabase.from('stores').select('id, name').eq('id', businessId).maybeSingle();
   if (!store) return { error: 'Pick a store first.' };
 
   let summary: RegisterSummary;

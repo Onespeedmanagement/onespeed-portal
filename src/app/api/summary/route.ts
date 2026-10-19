@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const supabase = supabaseService();
   const day = addDays(todayNY(), -1);
   const [{ data: stores }, { data: pos }, { data: cos }, { data: tol }, { data: qs }, { data: held }, { data: reps }, { data: overrides }, { data: changes }] = await Promise.all([
-    supabase.from('businesses').select('id, name, portfolio_id, portfolios(status)').eq('active', true).order('name'),
+    supabase.from('stores').select('id, name, portfolio_id').eq('active', true).order('name'),
     supabase.from('pos_daily').select('business_id, total_sales, profit_pct, transactions').eq('business_date', day),
     supabase.from('closeout_results').select('business_id, difference').eq('business_date', day),
     supabase.from('settings').select('value').eq('key', 'match_tolerance').maybeSingle(),
@@ -25,7 +25,8 @@ export async function GET(request: Request) {
     supabase.from('pos_changes').select('id').gte('changed_at', `${addDays(day, -1)}T00:00:00Z`),
   ]);
   const tolerance = Number(tol?.value ?? 1);
-  const live = (stores ?? []).filter((s) => (s as unknown as { portfolios: { status: string } | null }).portfolios?.status === 'live');
+  const { data: pfs } = await supabase.from('portfolios').select('id, status');
+  const live = (stores ?? []).filter((s) => pfs?.find((p) => p.id === s.portfolio_id)?.status === 'live');
   const lines = live.map((s) => {
     const p = pos?.find((x) => x.business_id === s.id);
     const c = cos?.find((x) => x.business_id === s.id);

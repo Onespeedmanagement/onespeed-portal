@@ -10,7 +10,7 @@ type Supa = Awaited<ReturnType<typeof supabaseServer>>;
 // The store must be one this manager is assigned to (only those are visible to them);
 // dates come from the server, never from the form.
 async function context(supabase: Supa, wanted: FormDataEntryValue | null) {
-  const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
+  const { data: stores } = await supabase.from('stores').select('id, name').eq('active', true).order('name');
   const store = stores?.find((s) => s.id === String(wanted ?? '')) ?? (stores?.length === 1 ? stores[0] : undefined);
   if (!store) return null;
   const { data } = await supabase.rpc('manager_report_days', { b: store.id });

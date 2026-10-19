@@ -11,7 +11,7 @@ export default async function InvestmentsPage() {
   const [{ data: self }, { data: biz }, { data: portfolios }] = await Promise.all([
     supabase.from('app_users').select('display_name, can_see_sales, can_see_owners, can_see_cash').eq('email', me.email).single(),
     supabase.from('businesses').select('id, name, portfolio_id').eq('active', true).order('name'),
-    supabase.from('portfolios').select('id, name, status').order('sort'),
+    supabase.from('portfolios').select('id, name, status, kind').order('sort'),
   ]);
   const { data: latest } = self?.can_see_sales
     ? await supabase.from('pos_daily').select('business_id, business_date, total_sales, profit_pct').order('business_date', { ascending: false }).limit(100)
@@ -22,6 +22,8 @@ export default async function InvestmentsPage() {
   const { data: qb } = self?.can_see_owners
     ? await supabase.from('owners_report').select('business_id, business_date, qb_balance').order('business_date', { ascending: false }).limit(100)
     : { data: [] };
+  const { data: schoolMonths } = await supabase.from('school_months').select('business_id, month, revenue, operating_income').order('month', { ascending: false }).limit(100);
+  const usd0 = (n: number | null) => (n == null ? '—' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
   const groups = (portfolios ?? []).map((p) => ({ ...p, list: (biz ?? []).filter((b) => b.portfolio_id === p.id) })).filter((g) => g.list.length);
 
   return (
@@ -40,6 +42,16 @@ export default async function InvestmentsPage() {
               <div className="row between"><h2 style={{ fontSize: 28 }}>{g.name}</h2>{g.status !== 'live' && <span className="pill warn">Coming soon</span>}</div>
               {g.list.map((b) => {
                 const d = latest?.find((r) => r.business_id === b.id);
+                if (g.kind === 'school') {
+                  const sm = schoolMonths?.find((r) => r.business_id === b.id);
+                  return (
+                    <div key={b.id} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <strong>{b.name}</strong>
+                      <span className="small muted num">{sm ? <><strong style={{ color: 'var(--text)' }}>{new Date(`${sm.month.slice(0, 7)}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</strong>: revenue <strong style={{ color: 'var(--green)', fontSize: 15 }}>{usd0(sm.revenue)}</strong> · operating income {usd0(sm.operating_income)}</> : 'Monthly reports appear here once loaded.'}</span>
+                      <div className="row"><a className="btn secondary" href={`/goddard/${b.id}`} style={{ textDecoration: 'none', minHeight: 38, padding: '6px 12px' }}>School report</a></div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={b.id} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <strong>{b.name}</strong>

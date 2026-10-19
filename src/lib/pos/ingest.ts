@@ -47,7 +47,7 @@ export async function ingestPosPdf(
         : `This report is for ${niceDate(parsed.businessDate)}, which can't be uploaded here. Ask an admin.` };
   }
 
-  const { data: businesses } = await supabase.from('businesses').select('id, name, pos_match').eq('active', true);
+  const { data: businesses } = await supabase.from('stores').select('id, name, pos_match').eq('active', true);
   const store = (businesses ?? []).find((b) =>
     b.pos_match && parsed.storeName.toLowerCase().includes(String(b.pos_match).toLowerCase()));
   if (restrictTo && store?.id !== restrictTo.businessId) {

@@ -13,7 +13,7 @@ export default async function EditDayPage({ searchParams }: { searchParams: Prom
   const me = await requireRole('bookkeeper');
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const { data: stores } = await supabase.from('businesses').select('id, name').eq('active', true).order('name');
+  const { data: stores } = await supabase.from('stores').select('id, name').eq('active', true).order('name');
   const store = stores?.find((s) => s.id === sp.store) ?? stores?.[0];
   const yesterday = addDays(todayNY(), -1);
   const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) && sp.date <= yesterday ? sp.date : yesterday;
