@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireRole } from '@/lib/auth';
+import { requireRole, ROLE_LABEL } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { RoleNav } from '@/components/RoleNav';
@@ -9,20 +9,20 @@ import { FmsUpload } from './FmsUpload';
 export const dynamic = 'force-dynamic';
 
 export default async function GoddardUploadPage() {
-  const me = await requireRole('admin', 'school_bookkeeper');
+  const me = await requireRole('admin', 'school_bookkeeper', 'school_admin');
   const supabase = await supabaseServer();
   const { schools } = await loadSchools(supabase);
   const { data: months } = await supabase.from('school_months').select('business_id, month').order('month', { ascending: false }).limit(500);
   return (
     <>
-      <TopBar subtitle="Management Portal" who={`${me.email} · ${me.role === 'admin' ? 'Admin' : 'Goddard bookkeeper'}`} />
+      <TopBar subtitle="Management Portal" who={`${me.email} · ${ROLE_LABEL[me.role]}`} />
       <RoleNav role={me.role} active="/goddard/upload" />
       <main className="page">
         <div>
           <Link href="/goddard" className="small">← Goddard Schools</Link>
           <h1>Upload school financials</h1>
         </div>
-        <FmsUpload isAdmin={me.role === 'admin'} />
+        <FmsUpload isAdmin={me.role === 'admin' || me.role === 'school_admin'} />
         <section className="card">
           <h2 style={{ marginBottom: 8 }}>Loaded so far</h2>
           {schools.length === 0 ? <p className="muted">No schools yet. Upload a school’s report and it’s added automatically.</p> : schools.map((s) => {

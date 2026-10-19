@@ -16,7 +16,7 @@ const pc = (n: number | null) => (n == null ? '—' : `${n.toFixed(1)}%`);
 const amt = (ls: Line[] | undefined, label: string) => ls?.find((l) => l.label === label)?.amount ?? null;
 
 export default async function SchoolPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ month?: string }> }) {
-  const me = await requireRole('admin', 'investor', 'school_bookkeeper');
+  const me = await requireRole('admin', 'investor', 'school_bookkeeper', 'school_admin');
   const { id } = await params;
   const sp = await searchParams;
   const supabase = await supabaseServer();
@@ -32,7 +32,7 @@ export default async function SchoolPage({ params, searchParams }: { params: Pro
   const avg3 = (label: string) => last3.length ? last3.reduce((a, m) => a + (amt(m.expenses, label) ?? 0), 0) / last3.length : null;
   const { data: files } = await supabase.from('school_files').select('id, kind, filename, month, uploaded_by, uploaded_at').eq('business_id', id)
     .gte('month', addMonthsIso(month, -1)).lte('month', addMonthsIso(month, 1)).order('uploaded_at', { ascending: false });
-  const canUpload = me.role === 'admin' || me.role === 'school_bookkeeper';
+  const canUpload = me.role === 'admin' || me.role === 'school_bookkeeper' || me.role === 'school_admin';
   const isInvestor = me.role === 'investor';
 
   // Things worth a look

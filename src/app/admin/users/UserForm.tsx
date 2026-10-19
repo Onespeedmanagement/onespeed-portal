@@ -20,7 +20,7 @@ export function UserForm({ businesses, user, access }: { businesses: Biz[]; user
         <div className="field"><label htmlFor="role">Role</label>
           <select id="role" name="role" value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="manager">Store manager</option><option value="investor">Investor</option>
-            <option value="bookkeeper">Bookkeeper (stores)</option><option value="school_bookkeeper">Goddard bookkeeper</option><option value="admin">Admin</option>
+            <option value="bookkeeper">Bookkeeper (stores)</option><option value="school_bookkeeper">Goddard bookkeeper</option><option value="school_admin">Goddard admin</option><option value="admin">Admin (everything)</option>
           </select></div>
       </div>
       {(role === 'manager' || role === 'investor' || role === 'school_bookkeeper') && (

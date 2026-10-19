@@ -14,14 +14,14 @@ export type FmsResult = {
 const usd = (n: number | null) => (n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
 
 export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<FmsResult[]> {
-  const me = await requireRole('admin', 'school_bookkeeper');
+  const me = await requireRole('admin', 'school_bookkeeper', 'school_admin');
   const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
   const saveAnyway = form.get('save_anyway') === 'on';
   if (!files.length) return [{ filename: '', status: 'error', message: 'Choose the PDFs first.' }];
   if (files.length > 30) return [{ filename: '', status: 'error', message: 'Upload at most 30 files at a time.' }];
   const supabase = await supabaseServer();
   const { schools } = await loadSchools(supabase);
-  const { portfolio, schools: allSchools } = me.role === 'admin' ? await loadSchools(supabase, true) : { portfolio: null, schools: [] };
+  const { portfolio, schools: allSchools } = me.role === 'admin' || me.role === 'school_admin' ? await loadSchools(supabase, true) : { portfolio: null, schools: [] };
   const out: FmsResult[] = [];
 
   for (const f of files) {
@@ -57,7 +57,7 @@ export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<Fms
       continue;
     }
     // Keep the school's name as the FMS report states it ("Hockessin, DE")
-    if (r.schoolName && school.name !== r.schoolName && me.role === 'admin') {
+    if (r.schoolName && school.name !== r.schoolName && (me.role === 'admin' || me.role === 'school_admin')) {
       const { error: nameErr } = await supabase.from('businesses').update({ name: r.schoolName }).eq('id', school.id);
       if (!nameErr) school.name = r.schoolName;
     }
@@ -96,7 +96,7 @@ export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<Fms
 
 // Add a school straight from an upload that named one we don't have yet
 export async function addSchool(form: FormData) {
-  await requireRole('admin');
+  await requireRole('admin', 'school_admin');
   const supabase = await supabaseServer();
   const { portfolio } = await loadSchools(supabase, true);
   const number = String(form.get('number') ?? '').replace(/\D/g, '');
@@ -109,7 +109,7 @@ export async function addSchool(form: FormData) {
 
 // School reports kept as files (forecasted billing, A/R ledger, …): the browser uploads to storage, this records it
 export async function recordSchoolFile(businessId: string, month: string, kind: string, storagePath: string, filename: string): Promise<{ ok?: string; error?: string }> {
-  await requireRole('admin', 'school_bookkeeper');
+  await requireRole('admin', 'school_bookkeeper', 'school_admin');
   if (!/^\d{4}-\d{2}-01$/.test(month) || !storagePath.startsWith(`${businessId}/`) || storagePath.includes('..')) return { error: 'Upload failed.' };
   if (!['forecast', 'new_enrollments', 'ar_ledger', 'deposits', 'other', 'financial'].includes(kind)) return { error: 'Pick the report type.' };
   const supabase = await supabaseServer();
@@ -120,7 +120,7 @@ export async function recordSchoolFile(businessId: string, month: string, kind: 
 }
 
 export async function deleteSchoolFile(form: FormData) {
-  await requireRole('admin', 'school_bookkeeper');
+  await requireRole('admin', 'school_bookkeeper', 'school_admin');
   const supabase = await supabaseServer();
   const { data } = await supabase.from('school_files').select('id, business_id, storage_path').eq('id', String(form.get('id'))).maybeSingle();
   if (!data) return;

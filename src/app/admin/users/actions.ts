@@ -11,7 +11,7 @@ export async function saveUser(_p: FormState, form: FormData): Promise<FormState
   const email = String(form.get('email') || '').trim().toLowerCase();
   const role = String(form.get('role'));
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: 'Enter a valid Google email address.' };
-  if (!['admin', 'bookkeeper', 'manager', 'investor', 'school_bookkeeper'].includes(role)) return { error: 'Pick a role.' };
+  if (!['admin', 'bookkeeper', 'manager', 'investor', 'school_bookkeeper', 'school_admin'].includes(role)) return { error: 'Pick a role.' };
   if (email === me.email && role !== 'admin') return { error: 'You can’t remove your own admin access.' };
   const businessIds = form.getAll('business_id').map(String);
   const scoped = role === 'manager' || role === 'investor' || role === 'school_bookkeeper';

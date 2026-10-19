@@ -16,7 +16,7 @@ function GoddardNav({ active, withPortfolio }: { active: string; withPortfolio: 
 }
 
 export function RoleNav({ role, active }: { role: Role; active: string }) {
-  if (active.startsWith('/goddard') && (role === 'admin' || role === 'school_bookkeeper')) return <GoddardNav active={active} withPortfolio={role === 'admin'} />;
+  if (active.startsWith('/goddard') && (role === 'admin' || role === 'school_bookkeeper' || role === 'school_admin')) return <GoddardNav active={active} withPortfolio={role === 'admin'} />;
   if (role === 'admin') return <AdminNav active={active} />;
   if (role === 'bookkeeper') return <BookkeeperNav active={active} />;
   return null;

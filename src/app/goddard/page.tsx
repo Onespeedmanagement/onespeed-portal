@@ -13,7 +13,7 @@ const usd = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleStr
 const pc = (n: number | null) => (n == null ? '—' : `${n.toFixed(1)}%`);
 
 export default async function GoddardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
-  const me = await requireRole('admin', 'investor', 'school_bookkeeper');
+  const me = await requireRole('admin', 'investor', 'school_bookkeeper', 'school_admin');
   const sp = await searchParams;
   const supabase = await supabaseServer();
   const { schools } = await loadSchools(supabase);
@@ -25,7 +25,7 @@ export default async function GoddardPage({ searchParams }: { searchParams: Prom
   const trendMonths = month ? Array.from({ length: 12 }, (_, i) => addMonthsIso(month, i - 11)) : [];
   const { data: allMonths } = ids.length ? await supabase.from('school_months').select('month').in('business_id', ids).order('month', { ascending: false }).limit(400) : { data: [] };
   const monthOpts = [...new Set((allMonths ?? []).map((m) => m.month))];
-  const canUpload = me.role === 'admin' || me.role === 'school_bookkeeper';
+  const canUpload = me.role === 'admin' || me.role === 'school_bookkeeper' || me.role === 'school_admin';
   const isInvestor = me.role === 'investor';
 
   const total = (ms: (SchoolMonth | undefined)[]) => {
