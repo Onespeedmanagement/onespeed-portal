@@ -3,6 +3,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { AdminNav } from '@/components/AdminNav';
 import { longDate, money, signedMoney } from '@/lib/format';
+import { startViewAs } from '@/app/view-as/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +75,12 @@ export default async function ViewAccessPage({ searchParams }: { searchParams: P
           <div className="eyebrow" style={{ marginTop: 8 }}>What this person can see</div>
           <h1>{u ? (u.display_name || u.email) : 'User not found'}</h1>
           {u && <span className="small muted">{u.email} · {u.role} · {u.active ? 'active' : 'turned off (can’t sign in)'}</span>}
+          {u && u.role !== 'admin' && u.active && (
+            <form action={startViewAs} style={{ marginTop: 10 }}>
+              <input type="hidden" name="email" value={u.email} />
+              <button className="btn" type="submit">👁 See the portal as they see it</button>
+            </form>
+          )}
         </div>
 
         {u && (
@@ -126,6 +133,12 @@ export default async function ViewAccessPage({ searchParams }: { searchParams: P
             )}
 
             <div className="row">
+              {u.role !== 'admin' && u.active && (
+                <form action={startViewAs}>
+                  <input type="hidden" name="email" value={u.email} />
+                  <button className="btn" type="submit">👁 View as {u.display_name || u.email}</button>
+                </form>
+              )}
               <a href={`/admin/users?edit=${encodeURIComponent(u.email)}`} className="btn secondary" style={{ textDecoration: 'none' }}>Change their access</a>
             </div>
           </>

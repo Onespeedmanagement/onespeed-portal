@@ -1,12 +1,15 @@
 import { redirect } from 'next/navigation';
-import { supabaseServer } from './supabase/server';
+import { cookies } from 'next/headers';
+import { supabaseServer, VIEW_AS_COOKIE } from './supabase/server';
 
 export type Role = 'admin' | 'bookkeeper' | 'manager' | 'investor';
-export type Me = { email: string; role: Role; displayName: string | null };
+// viewingAs = the admin's own email while they use "View as"
+export type Me = { email: string; role: Role; displayName: string | null; viewingAs?: string };
 
 // The signed-in person, only if they are on the portal's list and active.
+// An admin using "View as" gets the other person instead (read only).
 export async function getMe(): Promise<Me | null> {
-  const supabase = await supabaseServer();
+  const supabase = await supabaseServer({ real: true });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) return null;
   const { data } = await supabase
@@ -15,7 +18,14 @@ export async function getMe(): Promise<Me | null> {
     .eq('email', user.email.toLowerCase())
     .maybeSingle();
   if (!data || !data.active) return null;
-  return { email: data.email, role: data.role as Role, displayName: data.display_name };
+  const real: Me = { email: data.email, role: data.role as Role, displayName: data.display_name };
+
+  const viewAs = (await cookies()).get(VIEW_AS_COOKIE)?.value;
+  if (viewAs && real.role === 'admin' && viewAs !== real.email) {
+    const { data: other } = await supabase.from('app_users').select('email, role, display_name, active').eq('email', viewAs).maybeSingle();
+    if (other) return { email: other.email, role: other.role as Role, displayName: other.display_name, viewingAs: real.email };
+  }
+  return real;
 }
 
 export function homeFor(role: Role): string {

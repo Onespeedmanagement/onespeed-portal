@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { ViewAsBanner } from '@/components/ViewAsBanner';
 
 export const metadata: Metadata = {
   title: 'OneSpeed Management Portal',
@@ -20,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body><ViewAsBanner />{children}</body>
     </html>
   );
 }
