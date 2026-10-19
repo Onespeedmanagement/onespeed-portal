@@ -64,13 +64,13 @@ export default async function PortfolioPage() {
                     </a>
                   );
                   return (
-                    <div key={b.id} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10 }}>
-                      <strong>{b.name}</strong>
+                    <a key={b.id} href={`/owners?store=${b.id}${d ? `&date=${d.business_date}` : ''}`} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10, textDecoration: 'none', color: 'inherit' }}>
+                      <div className="row between"><strong>{b.name}</strong><span style={{ color: 'var(--gold-text)' }}>→</span></div>
                       <div className="small muted num">
                         {d ? <><strong style={{ color: 'var(--text)' }}>{longDate(d.business_date)}</strong>: sales <strong style={{ color: 'var(--green)', fontSize: 15 }}>{money(d.total_sales)}</strong> · profit {d.profit_pct != null ? `${d.profit_pct}%` : "—"} · cash {money(d.cash_sales)}</>
                            : 'Waiting for the first POS report'}
                       </div>
-                    </div>
+                    </a>
                   );
                 })}
               </section>
