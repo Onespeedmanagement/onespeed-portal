@@ -15,12 +15,11 @@ export default async function GoddardUploadPage() {
   const { data: months } = await supabase.from('school_months').select('business_id, month').order('month', { ascending: false }).limit(500);
   return (
     <>
-      <TopBar subtitle="Goddard Schools" who={`${me.email} · ${me.role === 'admin' ? 'Admin' : 'Goddard bookkeeper'}`} />
-      <RoleNav role={me.role} active={me.role === 'admin' ? '/goddard' : '/goddard/upload'} />
+      <TopBar subtitle="Management Portal" who={`${me.email} · ${me.role === 'admin' ? 'Admin' : 'Goddard bookkeeper'}`} />
+      <RoleNav role={me.role} active="/goddard/upload" />
       <main className="page">
         <div>
           <Link href="/goddard" className="small">← Goddard Schools</Link>
-          <div className="eyebrow" style={{ marginTop: 8 }}>Monthly</div>
           <h1>Upload school financials</h1>
         </div>
         <FmsUpload isAdmin={me.role === 'admin'} />

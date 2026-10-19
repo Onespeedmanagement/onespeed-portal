@@ -54,7 +54,7 @@ export default async function SchoolPage({ params, searchParams }: { params: Pro
 
   return (
     <>
-      <TopBar subtitle={isInvestor ? 'Investor Portal' : 'Goddard Schools'} who={`${me.email} · ${ROLE_LABEL[me.role]}`} />
+      <TopBar subtitle={isInvestor ? 'Investor Portal' : 'Management Portal'} who={`${me.email} · ${ROLE_LABEL[me.role]}`} />
       <RoleNav role={me.role} active="/goddard" />
       <main className="page" style={{ maxWidth: 1240 }}>
         <div className="row between">

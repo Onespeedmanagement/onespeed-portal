@@ -44,13 +44,17 @@ export default async function PortfolioPage() {
             return (
               <section key={p.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: `4px solid ${p.status === 'live' ? 'var(--green)' : 'var(--gold)'}` }}>
                 <div className="row between">
-                  <h2 style={{ fontSize: 30 }}>{p.name}</h2>
+                  {(() => {
+                    const home = /goddard/i.test(p.name) ? '/goddard' : /wine|spirit|liquor/i.test(p.name) ? '/dashboard' : null;
+                    return home ? <Link href={home} style={{ color: 'inherit', textDecoration: 'none' }}><h2 style={{ fontSize: 30 }}>{p.name} <span style={{ fontSize: 20, color: 'var(--gold-text)' }}>→</span></h2></Link>
+                      : <h2 style={{ fontSize: 30 }}>{p.name}</h2>;
+                  })()}
                   <span className={`pill ${p.status === 'live' ? 'good' : 'warn'}`}>{p.status === 'live' ? 'Live' : 'Coming soon'}</span>
                 </div>
                 {list.length === 0 && (/goddard/i.test(p.name)
                   ? <span className="small muted"><Link href="/goddard/upload">Upload a school’s FMS Monthly Financial Report</Link> to add it.</span>
                   : <span className="small muted">Locations will be added here.</span>)}
-                {/goddard/i.test(p.name) && list.length > 0 && <Link href="/goddard" className="small">Open Goddard dashboard →</Link>}
+                {/goddard/i.test(p.name) && list.length > 0 && <Link href="/goddard" className="btn secondary" style={{ textDecoration: 'none', alignSelf: 'flex-start' }}>Open Goddard Schools</Link>}
                 {list.map((b: Biz) => {
                   const d = lastFor(b.id);
                   const sm = schoolFor(b.id);

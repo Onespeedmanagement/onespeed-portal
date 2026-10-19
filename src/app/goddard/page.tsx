@@ -37,13 +37,12 @@ export default async function GoddardPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <TopBar subtitle={isInvestor ? 'Investor Portal' : 'Goddard Schools'} who={`${me.email} · ${ROLE_LABEL[me.role]}`} />
+      <TopBar subtitle={isInvestor ? 'Investor Portal' : 'Management Portal'} who={`${me.email} · ${ROLE_LABEL[me.role]}`} />
       <RoleNav role={me.role} active="/goddard" />
       <main className="page" style={{ maxWidth: 1360 }}>
         <div className="row between">
           <div>
             {isInvestor && <a href="/investments" className="small">← Your investments</a>}
-            <div className="eyebrow">Goddard Schools · monthly</div>
             <h1>{month ? monthName(month) : 'Goddard Schools'}</h1>
           </div>
           <div className="row">
