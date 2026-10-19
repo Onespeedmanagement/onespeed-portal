@@ -68,7 +68,7 @@ export default async function GoddardPage({ searchParams }: { searchParams: Prom
               const cur = at(s.id, month), prev = at(s.id, addMonthsIso(month, -1)), ly = at(s.id, addMonthsIso(month, -12));
               return (
                 <a key={s.id} href={`/goddard/${s.id}?month=${month.slice(0, 7)}`} className="card num" style={{ display: 'flex', flexDirection: 'column', gap: 10, textDecoration: 'none', color: 'inherit' }}>
-                  <strong style={{ fontSize: 17 }}>{s.name}</strong>
+                  <strong style={{ fontSize: 17 }}>{s.name}{s.pos_match ? <span className="small muted" style={{ fontWeight: 400 }}> · Goddard {s.pos_match}</span> : null}</strong>
                   {!cur ? <span className="muted small">No report for {monthName(month, 'short')} yet.</span> : (
                     <>
                       <div><div className="small muted">Revenue</div><div style={{ fontSize: 26, fontWeight: 600, color: 'var(--green)' }}>{usd(cur.revenue)}</div>

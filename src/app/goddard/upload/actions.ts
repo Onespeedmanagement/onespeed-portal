@@ -14,7 +14,7 @@ export type FmsResult = {
 const usd = (n: number | null) => (n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
 
 export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<FmsResult[]> {
-  await requireRole('admin', 'school_bookkeeper');
+  const me = await requireRole('admin', 'school_bookkeeper');
   const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
   const saveAnyway = form.get('save_anyway') === 'on';
   if (!files.length) return [{ filename: '', status: 'error', message: 'Choose the PDFs first.' }];
@@ -37,6 +37,11 @@ export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<Fms
       out.push({ filename: f.name, status: 'unknown_school', message: `This report is for ${r.schoolName} (#${r.schoolNumber ?? '?'}), which isn’t set up yet.`,
         schoolName: r.schoolName, schoolNumber: r.schoolNumber, month: r.month });
       continue;
+    }
+    // Keep the school's name as the FMS report states it ("Hockessin, DE")
+    if (r.schoolName && school.name !== r.schoolName && me.role === 'admin') {
+      const { error: nameErr } = await supabase.from('businesses').update({ name: r.schoolName }).eq('id', school.id);
+      if (!nameErr) school.name = r.schoolName;
     }
     const failed = r.checks.filter((c) => !c.ok).map((c) => `${c.name} (${c.detail})`);
     if (failed.length && !saveAnyway) {
@@ -67,6 +72,7 @@ export async function uploadFms(_prev: FmsResult[], form: FormData): Promise<Fms
     });
   }
   revalidatePath('/goddard');
+  revalidatePath('/portfolio');
   return out;
 }
 

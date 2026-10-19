@@ -7,14 +7,14 @@ import { longDate, money } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-type Biz = { id: string; name: string; portfolio_id: string };
+type Biz = { id: string; name: string; portfolio_id: string; pos_match?: string | null };
 
 export default async function PortfolioPage() {
   const me = await requireRole('admin');
   const supabase = await supabaseServer();
   const [{ data: portfolios }, { data: businesses }, { data: latest }] = await Promise.all([
     supabase.from('portfolios').select('id, name, status').order('sort'),
-    supabase.from('businesses').select('id, name, portfolio_id').eq('active', true).order('name'),
+    supabase.from('businesses').select('id, name, portfolio_id, pos_match').eq('active', true).order('name'),
     supabase.from('pos_daily').select('business_id, business_date, total_sales, profit_pct, cash_sales, card_sales')
       .order('business_date', { ascending: false }).limit(200),
   ]);
@@ -56,7 +56,7 @@ export default async function PortfolioPage() {
                   const sm = schoolFor(b.id);
                   if (!d && (sm || /goddard/i.test(p.name))) return (
                     <a key={b.id} href={`/goddard/${b.id}`} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10, textDecoration: 'none', color: 'inherit' }}>
-                      <strong>{b.name}</strong>
+                      <strong>{b.name}</strong>{b.pos_match ? <span className="small muted"> · Goddard {b.pos_match}</span> : null}
                       <div className="small muted num">{sm ? <><strong style={{ color: 'var(--text)' }}>{new Date(`${sm.month.slice(0, 7)}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</strong>: revenue <strong style={{ color: 'var(--green)', fontSize: 15 }}>{usd0(sm.revenue)}</strong> · operating income {usd0(sm.operating_income)}</> : 'Waiting for the first monthly report'}</div>
                     </a>
                   );

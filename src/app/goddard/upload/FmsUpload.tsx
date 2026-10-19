@@ -34,7 +34,7 @@ export function FmsUpload({ isAdmin }: { isAdmin: boolean }) {
                     {r.status === 'unknown_school' && isAdmin && (
                       <form action={addSchool} className="row" style={{ marginTop: 8 }}>
                         <input type="hidden" name="number" value={r.schoolNumber ?? ''} />
-                        <input name="name" defaultValue={`Goddard ${r.schoolName?.split(',')[0] ?? ''}`.trim()} aria-label="School name" style={{ width: 'auto', flex: '1 1 200px' }} />
+                        <input name="name" defaultValue={r.schoolName ?? ''} aria-label="School name" style={{ width: 'auto', flex: '1 1 200px' }} />
                         <button className="btn secondary" type="submit">Add this school</button>
                         <span className="small muted">then upload the file again</span>
                       </form>
