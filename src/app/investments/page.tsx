@@ -19,6 +19,9 @@ export default async function InvestmentsPage() {
   const { data: cash } = self?.can_see_cash
     ? await supabase.from('closeout_results').select('business_id, business_date, deposit_amount, difference').order('business_date', { ascending: false }).limit(100)
     : { data: [] };
+  const { data: qb } = self?.can_see_owners
+    ? await supabase.from('owners_report').select('business_id, business_date, qb_balance').order('business_date', { ascending: false }).limit(100)
+    : { data: [] };
   const groups = (portfolios ?? []).map((p) => ({ ...p, list: (biz ?? []).filter((b) => b.portfolio_id === p.id) })).filter((g) => g.list.length);
 
   return (
@@ -44,6 +47,10 @@ export default async function InvestmentsPage() {
                     {self?.can_see_cash && (() => {
                       const c = cash?.find((r) => r.business_id === b.id);
                       return <span className="small muted num">{c ? <>{longDate(c.business_date)}: cash deposited <strong style={{ color: 'var(--text)' }}>{money(c.deposit_amount)}</strong>{c.difference != null ? <> · {Number(c.difference) === 0 ? 'matched' : Number(c.difference) < 0 ? 'short' : 'over'} {signedMoney(c.difference)}</> : null}</> : 'No cash close-out yet.'}</span>;
+                    })()}
+                    {self?.can_see_owners && (() => {
+                      const q = qb?.find((r) => r.business_id === b.id);
+                      return <span className="small muted num">{q ? <>QuickBooks balance <strong style={{ color: 'var(--text)' }}>{money(q.qb_balance)}</strong> · as of {longDate(q.business_date)}</> : 'QuickBooks balance not entered yet.'}</span>;
                     })()}
                     <div className="row">
                       {self?.can_see_sales && <a className="btn secondary" href="/dashboard" style={{ textDecoration: 'none', minHeight: 38, padding: '6px 12px' }}>Sales dashboard</a>}
