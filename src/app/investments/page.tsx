@@ -43,7 +43,7 @@ export default async function InvestmentsPage() {
                 return (
                   <div key={b.id} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <strong>{b.name}</strong>
-                    {self?.can_see_sales && <span className="small muted num">{d ? <><strong style={{ color: 'var(--text)' }}>{longDate(d.business_date)}</strong>: sales <strong style={{ color: 'var(--green)', fontSize: 15 }}>{money(d.total_sales)}</strong> · profit {d.profit_pct}%</> : 'Reports appear here once data is in.'}</span>}
+                    {self?.can_see_sales && <span className="small muted num">{d ? <><strong style={{ color: 'var(--text)' }}>{longDate(d.business_date)}</strong>: sales <strong style={{ color: 'var(--green)', fontSize: 15 }}>{money(d.total_sales)}</strong> · profit {d.profit_pct != null ? `${d.profit_pct}%` : "—"}</> : 'Reports appear here once data is in.'}</span>}
                     {self?.can_see_cash && (() => {
                       const c = cash?.find((r) => r.business_id === b.id);
                       return <span className="small muted num">{c ? <><strong style={{ color: 'var(--text)' }}>{longDate(c.business_date)}</strong>: cash deposited <strong style={{ color: 'var(--text)' }}>{money(c.deposit_amount)}</strong>{c.difference != null ? <> · {Number(c.difference) === 0 ? 'matched' : Number(c.difference) < 0 ? 'short' : 'over'} {signedMoney(c.difference)}</> : null}</> : 'No cash close-out yet.'}</span>;

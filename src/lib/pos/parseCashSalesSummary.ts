@@ -14,6 +14,8 @@ export type DepartmentSale = {
 };
 export type Check = { name: string; ok: boolean; detail: string };
 
+export type DepartmentTotals = { qty: number; sales: number; cost: number; profit: number; profitPct: number };
+
 export type CashSalesSummary = {
   storeName: string;
   businessDate: string;              // YYYY-MM-DD
@@ -40,7 +42,7 @@ export type CashSalesSummary = {
   discounts: number;
   hourly: HourlySale[];
   departments: DepartmentSale[];
-  departmentTotals: { qty: number; sales: number; cost: number; profit: number; profitPct: number };
+  departmentTotals: DepartmentTotals | null;   // null when the report has no department table
   checks: Check[];
 };
 
@@ -143,16 +145,19 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
     .filter(c => c.length === 3 && /\d{2}:\d{2} [AP]M To/.test(c[0].text))
     .map(c => ({ period: c[0].text, count: toNumber(c[1].text), amount: toNumber(c[2].text) }));
 
-  // Departments (page 2): name, qty, price, cost, profit, % profit, % sales
+  // Departments: name, qty, price, cost, profit, % profit, % sales. Usually page 2, but a long
+  // report (busy day, many hourly rows) pushes the table, or its Total line, onto page 3.
   const departments: DepartmentSale[] = [];
-  let departmentTotals = { qty: 0, sales: 0, cost: 0, profit: 0, profitPct: 0 };
-  for (const r of rows.filter(r => r.page === 2)) {
+  let departmentTotals: DepartmentTotals | null = null;
+  const deptHeader = rows.findIndex(r => r.page >= 2 && r.cells.some(c => c.text === 'Department'));
+  const deptStart = deptHeader >= 0 ? deptHeader : rows.findIndex(r => r.page >= 2);
+  for (const r of deptStart >= 0 ? rows.slice(deptStart) : []) {
     const name = r.cells.filter(c => c.x < 150 && !isNumeric(c.text)).map(c => c.text).join(' ');
     const nums = r.cells.filter(c => c.x >= 150 && isNumeric(c.text)).map(c => toNumber(c.text));
     if (!name || name === 'Department') continue;
     if (/^Total$/i.test(name) && nums.length >= 5) {
       departmentTotals = { qty: nums[0], sales: nums[1], cost: nums[2], profit: nums[3], profitPct: nums[4] };
-    } else if (nums.length === 6) {
+    } else if (nums.length === 6 && !departmentTotals) {
       departments.push({ department: name, qty: nums[0], sales: nums[1], cost: nums[2],
         profit: nums[3], profitPct: nums[4], salesPct: nums[5] });
     }
@@ -195,8 +200,9 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
     { name: 'Card types add up to card total', ok: near(cardSum, s.cardTotal), detail: `${cardSum} vs ${s.cardTotal}` },
     { name: 'Card + cash-flow + register paid-outs = amount received', ok: near(s.cardTotal + s.netCashFlow + s.posPaidOut, s.grossReceived), detail: `${cents(s.cardTotal + s.netCashFlow + s.posPaidOut)} vs ${s.grossReceived}` },
     { name: 'Cash-flow + register paid-outs = cash tendered', ok: near(s.netCashFlow + s.posPaidOut, s.cashTendered), detail: `${cents(s.netCashFlow + s.posPaidOut)} vs ${s.cashTendered}` },
-    { name: 'Departments add up to department total', ok: near(deptSum, departmentTotals.sales), detail: `${deptSum} vs ${departmentTotals.sales}` },
-    { name: 'Department total matches net sales', ok: near(departmentTotals.sales, s.netSales), detail: `${departmentTotals.sales} vs ${s.netSales}` },
+    { name: 'Found the department Total line', ok: departmentTotals != null, detail: departmentTotals ? 'found' : 'no Total line in the department table' },
+    { name: 'Departments add up to department total', ok: departmentTotals != null && near(deptSum, departmentTotals.sales), detail: `${deptSum} vs ${departmentTotals?.sales ?? '—'}` },
+    { name: 'Department total matches net sales', ok: departmentTotals != null && near(departmentTotals.sales, s.netSales), detail: `${departmentTotals?.sales ?? '—'} vs ${s.netSales}` },
     { name: 'Found at least one department', ok: departments.length > 0, detail: `${departments.length} departments` },
   ];
   return s;

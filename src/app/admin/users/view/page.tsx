@@ -123,7 +123,7 @@ export default async function ViewAccessPage({ searchParams }: { searchParams: P
                   return (
                     <div key={a.business_id} style={{ padding: 14, border: '1px solid #ede6d3', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <strong>{a.businesses?.name}</strong>
-                      {u.can_see_sales && <span className="small muted num">{d ? <><strong style={{ color: 'var(--text)' }}>{longDate(d.business_date)}</strong>: sales <strong style={{ color: 'var(--green)' }}>{money(d.total_sales)}</strong> · profit {d.profit_pct}%</> : 'No sales yet.'}</span>}
+                      {u.can_see_sales && <span className="small muted num">{d ? <><strong style={{ color: 'var(--text)' }}>{longDate(d.business_date)}</strong>: sales <strong style={{ color: 'var(--green)' }}>{money(d.total_sales)}</strong> · profit {d.profit_pct != null ? `${d.profit_pct}%` : "—"}</> : 'No sales yet.'}</span>}
                       {u.can_see_cash && <span className="small muted num">{c ? <><strong style={{ color: 'var(--text)' }}>{longDate(c.business_date)}</strong>: cash deposited {money(c.deposit_amount)}{c.difference != null ? ` · ${signedMoney(c.difference)}` : ''}</> : 'No cash close-out yet.'}</span>}
                       {u.can_see_owners && <span className="small muted num">{q ? <>QuickBooks balance {money(q.qb_balance)} · as of {longDate(q.business_date)}</> : 'QuickBooks balance not entered yet.'}</span>}
                     </div>

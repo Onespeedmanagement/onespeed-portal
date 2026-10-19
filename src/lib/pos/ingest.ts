@@ -89,9 +89,9 @@ export async function ingestPosPdf(
     business_id: store.id,
     business_date: parsed.businessDate,
     total_sales: parsed.netSales,
-    cost: t.cost,
-    profit: t.profit,
-    profit_pct: t.profitPct,                // as the POS reports it
+    cost: t?.cost ?? null,                  // null = not in the report (never a fake 0%)
+    profit: t?.profit ?? null,
+    profit_pct: t?.profitPct ?? null,       // as the POS reports it
     card_sales: parsed.cardTotal,
     cash_sales: parsed.netCashFlow,         // Net Cash-Flow: what the drawer must match
     non_revenue: parsed.nonRevenue,
@@ -113,7 +113,7 @@ export async function ingestPosPdf(
   if (before && opts.logChangesAs) {
     await supabase.from('pos_changes').insert({
       business_id: store.id, business_date: parsed.businessDate, changed_by: opts.logChangesAs, before,
-      after: { total_sales: parsed.netSales, card_sales: parsed.cardTotal, cash_sales: parsed.netCashFlow, transactions: parsed.transactions, profit: t.profit },
+      after: { total_sales: parsed.netSales, card_sales: parsed.cardTotal, cash_sales: parsed.netCashFlow, transactions: parsed.transactions, profit: t?.profit ?? null },
     });
   }
 
