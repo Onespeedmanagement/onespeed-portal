@@ -5,7 +5,7 @@ import { CATEGORIES, type Contract } from '@/lib/contracts';
 
 type Opt = { id: string; name: string };
 
-export function ContractForm({ contract, businesses, admins, defaultRemind }: { contract?: Contract; businesses: Opt[]; admins: { email: string; name: string }[]; defaultRemind: string[] }) {
+export function ContractForm({ contract, businesses, admins, defaultRemind, portfolioId, allLabel }: { contract?: Contract; businesses: Opt[]; admins: { email: string; name: string }[]; defaultRemind: string[]; portfolioId: string | null; allLabel: string }) {
   const [state, action, pending] = useActionState<ContractState, FormData>(contract ? updateContract : createContract, {});
   const known = (CATEGORIES as readonly string[]).includes(contract?.category ?? '');
   const [cat, setCat] = useState(contract ? (known ? contract.category : 'Other') : 'Insurance');
@@ -14,6 +14,7 @@ export function ContractForm({ contract, businesses, admins, defaultRemind }: { 
   return (
     <form action={action} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {contract && <input type="hidden" name="id" value={contract.id} />}
+      <input type="hidden" name="portfolio_id" value={contract?.portfolio_id ?? portfolioId ?? ''} />
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <div className="field"><label htmlFor="category">Type</label>
           <select id="category" name="category" value={cat} onChange={(e) => setCat(e.target.value)}>
@@ -25,7 +26,7 @@ export function ContractForm({ contract, businesses, admins, defaultRemind }: { 
           <input id="vendor" name="vendor" type="text" defaultValue={contract?.vendor} required placeholder="e.g. Waste Management" /></div>
         <div className="field"><label htmlFor="business_id">For</label>
           <select id="business_id" name="business_id" defaultValue={contract?.business_id ?? ''}>
-            <option value="">Company-wide / all locations</option>
+            <option value="">{allLabel}</option>
             {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select></div>
         <div className="field" style={{ gridColumn: '1 / -1' }}><label htmlFor="description">What it covers (optional)</label>

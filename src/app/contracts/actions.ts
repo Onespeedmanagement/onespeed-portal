@@ -13,6 +13,7 @@ function readForm(form: FormData) {
   const intOrNull = (k: string) => (s(k) === '' ? null : Number(s(k)));
   return {
     business_id: s('business_id') || null,
+    portfolio_id: s('portfolio_id') || null,
     category: s('category') === 'Other' && s('category_other') ? s('category_other') : s('category'),
     vendor: s('vendor'),
     description: s('description') || null,
@@ -38,31 +39,42 @@ function check(c: ReturnType<typeof readForm>): string | null {
   if (c.cost != null && Number.isNaN(c.cost)) return 'Cost must be a dollar amount.';
   if (c.auto_renews && !c.renewal_months) return 'For a contract that renews automatically, enter how many months each renewal lasts.';
   if (c.remind_emails.length === 0) return 'Pick at least one person to get the reminder.';
+  if (!c.portfolio_id) return 'Couldn’t tell which business this contract is for. Reload the page and try again.';
   return null;
 }
 
+async function alignPortfolio(supabase: Awaited<ReturnType<typeof supabaseServer>>, c: ReturnType<typeof readForm>) {
+  if (!c.business_id) return;
+  const { data } = await supabase.from('businesses').select('portfolio_id').eq('id', c.business_id).maybeSingle();
+  if (data?.portfolio_id) c.portfolio_id = data.portfolio_id;
+}
+
 export async function createContract(_p: ContractState, form: FormData): Promise<ContractState> {
-  await requireRole('admin');
+  await requireRole('admin', 'school_admin');
   const c = readForm(form);
   const err = check(c);
   if (err) return { error: err };
   const supabase = await supabaseServer();
+  await alignPortfolio(supabase, c);
   const { data, error } = await supabase.from('contracts').insert(c).select('id').single();
   if (error) return { error: 'Couldn’t save the contract.' };
   revalidatePath('/contracts');
+  revalidatePath('/goddard/contracts');
   redirect(`/contracts/${data.id}?saved=1`);
 }
 
 export async function updateContract(_p: ContractState, form: FormData): Promise<ContractState> {
-  await requireRole('admin');
+  await requireRole('admin', 'school_admin');
   const id = String(form.get('id') || '');
   const c = readForm(form);
   const err = check(c);
   if (err) return { error: err };
   const supabase = await supabaseServer();
+  await alignPortfolio(supabase, c);
   const { error } = await supabase.from('contracts').update({ ...c, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) return { error: 'Couldn’t save the changes.' };
   revalidatePath('/contracts');
+  revalidatePath('/goddard/contracts');
   revalidatePath(`/contracts/${id}`);
   return { ok: 'Saved.' };
 }
@@ -70,7 +82,7 @@ export async function updateContract(_p: ContractState, form: FormData): Promise
 // The browser uploads the file straight to private storage (no size limit from the
 // web server); this records it against the contract.
 export async function recordFile(contractId: string, storagePath: string, filename: string): Promise<ContractState> {
-  await requireRole('admin');
+  await requireRole('admin', 'school_admin');
   if (!storagePath.startsWith(`${contractId}/`) || storagePath.includes('..')) return { error: 'Upload failed.' };
   const supabase = await supabaseServer();
   const { error } = await supabase.from('contract_files').insert({ contract_id: contractId, storage_path: storagePath, filename: filename.slice(0, 200) });
@@ -80,7 +92,7 @@ export async function recordFile(contractId: string, storagePath: string, filena
 }
 
 export async function deleteFile(form: FormData) {
-  await requireRole('admin');
+  await requireRole('admin', 'school_admin');
   const supabase = await supabaseServer();
   const { data } = await supabase.from('contract_files').select('id, contract_id, storage_path').eq('id', String(form.get('file_id'))).maybeSingle();
   if (!data) return;
@@ -90,23 +102,26 @@ export async function deleteFile(form: FormData) {
 }
 
 export async function setStatus(form: FormData) {
-  await requireRole('admin');
+  await requireRole('admin', 'school_admin');
   const id = String(form.get('id') || '');
   const status = String(form.get('status') || '');
   if (!['active', 'cancelled', 'ended'].includes(status)) return;
   const supabase = await supabaseServer();
   await supabase.from('contracts').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
   revalidatePath('/contracts');
+  revalidatePath('/goddard/contracts');
   revalidatePath(`/contracts/${id}`);
 }
 
 export async function deleteContract(form: FormData) {
-  await requireRole('admin');
+  await requireRole('admin', 'school_admin');
   const id = String(form.get('id') || '');
   const supabase = await supabaseServer();
   const { data: files } = await supabase.from('contract_files').select('storage_path').eq('contract_id', id);
   if (files?.length) await supabase.storage.from('contracts').remove(files.map((f) => f.storage_path));
   await supabase.from('contracts').delete().eq('id', id);
   revalidatePath('/contracts');
-  redirect('/contracts');
+  revalidatePath('/goddard/contracts');
+  const me = await requireRole('admin', 'school_admin');
+  redirect(form.get('back') === 'goddard' || me.role === 'school_admin' ? '/goddard/contracts' : '/contracts');
 }

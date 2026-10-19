@@ -47,7 +47,8 @@ function pagesFor(role: Role, u: { can_see_sales: boolean; can_see_owners: boole
         { page: 'Goddard Schools', ok: true, what: 'Every Goddard school: revenue, expenses, operating income, 12-month trend.' },
         { page: 'Upload financials', ok: true, what: 'Uploads FMS reports; new schools are added automatically from the report.' },
         { page: 'School reports', ok: true, what: 'Uploads and opens Forecasted Billing, New families, A/R Ledger and Deposit History.' },
-        no('Liquor stores (any page)'), no('Hotels'), no('Users & employees'), no('Contracts'), no('Portfolio'),
+        { page: 'Goddard contracts', ok: true, what: 'Adds and edits school contracts with renewal reminders. Store and hotel contracts stay hidden.' },
+        no('Liquor stores (any page)'), no('Hotels'), no('Users & employees'), no('Store contracts'), no('Portfolio'),
       ];
     case 'school_bookkeeper':
       return [

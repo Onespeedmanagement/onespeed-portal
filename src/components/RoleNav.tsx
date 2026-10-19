@@ -3,8 +3,8 @@ import { AdminNav } from './AdminNav';
 import { BookkeeperNav } from './BookkeeperNav';
 
 // Goddard pages get their own bar, so schools stay separate from the liquor stores
-function GoddardNav({ active, withPortfolio }: { active: string; withPortfolio: boolean }) {
-  const links = [...(withPortfolio ? [['/portfolio', '← Portfolio']] : []), ['/goddard', 'Goddard Schools'], ['/goddard/upload', 'Upload financials']];
+function GoddardNav({ active, withPortfolio, withContracts }: { active: string; withPortfolio: boolean; withContracts: boolean }) {
+  const links = [...(withPortfolio ? [['/portfolio', '← Portfolio']] : []), ['/goddard', 'Goddard Schools'], ['/goddard/upload', 'Upload financials'], ...(withContracts ? [['/goddard/contracts', 'Contracts']] : [])];
   return (
     <nav aria-label="Goddard" style={{ background: '#2c5240', padding: '0 clamp(16px, 3vw, 40px)', display: 'flex', gap: 22, flexWrap: 'wrap' }}>
       {links.map(([href, label]) => (
@@ -16,7 +16,7 @@ function GoddardNav({ active, withPortfolio }: { active: string; withPortfolio: 
 }
 
 export function RoleNav({ role, active }: { role: Role; active: string }) {
-  if (active.startsWith('/goddard') && (role === 'admin' || role === 'school_bookkeeper' || role === 'school_admin')) return <GoddardNav active={active} withPortfolio={role === 'admin'} />;
+  if (active.startsWith('/goddard') && (role === 'admin' || role === 'school_bookkeeper' || role === 'school_admin')) return <GoddardNav active={active} withPortfolio={role === 'admin'} withContracts={role === 'admin' || role === 'school_admin'} />;
   if (role === 'admin') return <AdminNav active={active} />;
   if (role === 'bookkeeper') return <BookkeeperNav active={active} />;
   return null;

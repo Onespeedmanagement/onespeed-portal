@@ -1,9 +1,9 @@
 import { addDays } from '@/lib/dates';
 
-export const CATEGORIES = ['Insurance', 'Lease', 'Trash', 'Utilities', 'Security / alarm', 'POS / software', 'Pest control', 'Equipment', 'Other'] as const;
+export const CATEGORIES = ['Insurance', 'Lease', 'Franchise agreement', 'Trash', 'Utilities', 'Security / alarm', 'POS / software', 'Cleaning / janitorial', 'Food service', 'Licenses / permits', 'Pest control', 'Equipment', 'Other'] as const;
 
 export type Contract = {
-  id: string; business_id: string | null; category: string; vendor: string; description: string | null;
+  id: string; business_id: string | null; portfolio_id: string | null; category: string; vendor: string; description: string | null;
   start_date: string | null; end_date: string; notice_days: number; auto_renews: boolean; renewal_months: number | null;
   cost: number | null; cost_period: string | null; remind_emails: string[]; status: string; notes: string | null;
 };

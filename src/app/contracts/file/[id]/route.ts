@@ -5,7 +5,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 // Opens a contract file through a short-lived private link (admins only).
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await getMe();
-  if (!me || me.role !== 'admin') return NextResponse.redirect(new URL('/no-access', request.url));
+  if (!me || (me.role !== 'admin' && me.role !== 'school_admin')) return NextResponse.redirect(new URL('/no-access', request.url));
   const { id } = await params;
   const supabase = await supabaseServer();
   const { data: file } = await supabase.from('contract_files').select('storage_path, filename').eq('id', id).maybeSingle();
