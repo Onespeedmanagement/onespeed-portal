@@ -3,7 +3,8 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { AdminNav } from '@/components/AdminNav';
 import { addDays, todayNY } from '@/lib/dates';
-import { analyze, seasonFactor, targetDaysFor, type DeptSale, type DeptRow, type InvLine } from '@/lib/forecast';
+import { analyze, normDept, seasonFactor, targetDaysFor, type DeptSale, type DeptRow, type InvLine } from '@/lib/forecast';
+import { insights } from '@/lib/forecastInsights';
 import { InventoryForms } from './InventoryForms';
 import { deleteSnapshot, saveTargets } from './actions';
 
@@ -48,8 +49,11 @@ export default async function ForecastingPage({ searchParams }: { searchParams: 
   const a = analyze(sales, inv, { targetDays: (d) => targetDaysFor(d, saved), season });
   const departments = [...new Set(sales.map((s) => s.department))].sort();
   const maxMix = Math.max(1, ...a.rows.map((r) => Math.max(r.salesMix, r.invMix ?? 0)));
-  const actions = a.rows.filter((r) => r.status === 'over' || r.status === 'dead' || r.status === 'lean')
-    .sort((x, y) => Math.abs(y.change ?? 0) - Math.abs(x.change ?? 0)).slice(0, 6);
+  const catMap: Record<string, { category: string; value: number }[]> = {};
+  for (const l of lines ?? []) if (Array.isArray(l.categories)) catMap[String(l.department).toLowerCase()] = l.categories as { category: string; value: number }[];
+  // sales use the POS name ("THC Drinks"), the count may say "Thc Drinks": key both ways
+  for (const r of a.rows) { const hit = Object.keys(catMap).find((k) => normDept(k) === normDept(r.department)); if (hit) catMap[r.department.toLowerCase()] = catMap[hit]; }
+  const notes = snap ? insights(a, catMap, to) : [];
   const nextMonth = new Date(`${to.slice(0, 7)}-15T12:00:00Z`); nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
 
   return (
@@ -100,16 +104,13 @@ export default async function ForecastingPage({ searchParams }: { searchParams: 
               ))}
             </section>
 
-            {snap && actions.length > 0 && (
-              <section className="card" style={{ borderLeft: '4px solid var(--gold)' }}>
-                <h2 style={{ marginBottom: 8 }}>What the numbers suggest</h2>
-                <ul style={{ margin: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {actions.map((r) => (
-                    <li key={r.department} className="small">
-                      <strong>{r.department}</strong>:{' '}
-                      {r.status === 'dead' ? <>{usd(r.inventory)} on the shelf and no sales in {a.days} days. Consider marking down or returning it.</>
-                        : r.status === 'over' ? <>about {d0(r.daysOnHand)} days of stock (target {r.targetDays}). It’s {pc(r.salesMix)} of sales but {pc(r.invMix)} of your inventory dollars. Holding roughly <strong>{usd(-(r.change ?? 0))}</strong> more than needed at cost; slow down buying until it sells through.</>
-                        : <>only about {d0(r.daysOnHand)} days of stock (target {r.targetDays}). It’s {pc(r.salesMix)} of sales but {pc(r.invMix)} of inventory. Adding about <strong>{usd(r.change)}</strong> at cost would avoid running out{r.margin != null ? ` (margin ${pc(r.margin)})` : ''}.</>}
+            {snap && notes.length > 0 && (
+              <section className="card" style={{ borderLeft: '4px solid var(--gold)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <h2>What stands out</h2>
+                <ul style={{ margin: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {notes.map((n, i) => (
+                    <li key={i} style={{ color: n.kind === 'data' ? 'var(--muted)' : undefined }}>
+                      {n.text.split(/\*\*(.+?)\*\*/g).map((part, k) => (k % 2 ? <strong key={k}>{part}</strong> : <span key={k}>{part}</span>))}
                     </li>
                   ))}
                 </ul>
