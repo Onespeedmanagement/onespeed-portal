@@ -35,7 +35,7 @@ export type Analysis = {
   season: number;              // seasonal factor used for the next 30 days
 };
 
-const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/(products?|items?|dept|department)$/, '');
 
 export function analyze(sales: DeptSale[], inventory: InvLine[] | null, opts: { targetDays: (department: string) => number; season: number }): Analysis {
   const dates = [...new Set(sales.map((s) => s.business_date))].sort();
@@ -109,15 +109,15 @@ export function seasonFactor(hist: { month: string; revenue: number }[], windowE
   return Math.min(2, Math.max(0.5, f));
 }
 
-// Typical days of stock to hold: beer and mixers turn fast, wine slowly.
+// Typical days of stock for a liquor store: beer ~12 turns a year, spirits ~5, wine ~3.5.
 export const DEFAULT_TARGET_DAYS: [RegExp, number][] = [
-  [/beer|ice|mixer|soda|snack|non-?alc|water|juice/i, 14],
-  [/sparkling|champagne|wine/i, 60],
-  [/liquor|spirit|whisk|vodka|tequila|rum|gin|cordial/i, 45],
+  [/beer|ice|soda|snack|water|juice|tobacco|cigar/i, 30],
+  [/sparkling|champagne|wine/i, 100],
+  [/liquor|spirit|whisk|vodka|tequila|rum|gin|cordial/i, 75],
 ];
 export function targetDaysFor(department: string, saved: Record<string, number>): number {
   const k = norm(department);
   if (saved[k] && saved[k] > 0) return saved[k];
-  return DEFAULT_TARGET_DAYS.find(([re]) => re.test(department))?.[1] ?? 30;
+  return DEFAULT_TARGET_DAYS.find(([re]) => re.test(department))?.[1] ?? 45;
 }
 export { norm as normDept };

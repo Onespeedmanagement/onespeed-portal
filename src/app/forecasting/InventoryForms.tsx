@@ -24,10 +24,10 @@ export function InventoryForms({ businessId, storeName, departments, today }: { 
       <form action={upload} className="row" style={{ alignItems: 'flex-end' }}>
         <input type="hidden" name="business_id" value={businessId} />
         <div className="field" style={{ flex: '0 1 180px' }}><label htmlFor="as_of_f">Counted on</label><input id="as_of_f" name="as_of" type="date" defaultValue={today} required /></div>
-        <div className="field" style={{ flex: '1 1 260px' }}><label htmlFor="inv_file">Inventory by department (Excel or CSV)</label><input id="inv_file" name="file" type="file" accept=".xlsx,.xls,.csv" /></div>
+        <div className="field" style={{ flex: '1 1 260px' }}><label htmlFor="inv_file">Inventory Value Analysis Report (PDF), or Excel / CSV</label><input id="inv_file" name="file" type="file" accept=".pdf,.xlsx,.xls,.csv" /></div>
         <button className="btn" type="submit" disabled={uploading}>{uploading ? 'Reading…' : 'Upload'}</button>
       </form>
-      <span className="small muted">Needs a Department column and an inventory cost column (extended / total cost). Item-level exports are fine: rows are added up by department. Uploading the same store and date again replaces it.</span>
+      <span className="small muted">From the POS: Inventory Value Analysis Report. The store and “As Of” date are read from the report, and it’s refused if it’s for a different store. Excel / CSV exports work too (Department + cost columns). Uploading the same store and date again replaces it.</span>
       <Result s={up} />
 
       <details>

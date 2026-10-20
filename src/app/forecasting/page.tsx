@@ -32,7 +32,7 @@ export default async function ForecastingPage({ searchParams }: { searchParams: 
     supabase.from('settings').select('value').eq('key', 'inventory_target_days').maybeSingle(),
   ]);
   const snap = snaps?.find((s) => s.id === sp.snap) ?? snaps?.[0] ?? null;
-  const { data: lines } = snap ? await supabase.from('inventory_lines').select('department, qty, cost_value, retail_value').eq('snapshot_id', snap.id) : { data: null };
+  const { data: lines } = snap ? await supabase.from('inventory_lines').select('department, qty, cost_value, retail_value, categories').eq('snapshot_id', snap.id) : { data: null };
 
   const sales: DeptSale[] = [];
   if (store) for (let page = 0; ; page++) {
@@ -160,10 +160,34 @@ export default async function ForecastingPage({ searchParams }: { searchParams: 
               </p>
             </section>
 
+            {snap && (lines ?? []).some((l) => Array.isArray(l.categories) && l.categories.length > 1) && (
+              <section className="card">
+                <h2 style={{ marginBottom: 4 }}>Inside each department</h2>
+                <span className="small muted">Where the inventory dollars sit within a department (from the inventory report). Sales by category aren’t on the nightly POS report, so this shows what you’re holding, not how fast it sells.</span>
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', marginTop: 10 }}>
+                  {[...(lines ?? [])].filter((l) => Array.isArray(l.categories) && l.categories.length > 1).sort((x, y) => Number(y.cost_value) - Number(x.cost_value)).map((l) => {
+                    const cats = [...(l.categories as { category: string; value: number }[])].sort((x, y) => y.value - x.value);
+                    const row = a.rows.find((r) => r.department.toLowerCase() === String(l.department).toLowerCase() || r.department === l.department);
+                    return (
+                      <details key={l.department} open={cats.length <= 8}>
+                        <summary style={{ cursor: 'pointer' }}><strong>{l.department}</strong> <span className="small muted">{usd(Number(l.cost_value))}{row?.status === 'over' ? ' · overstocked' : row?.status === 'lean' ? ' · running lean' : ''}</span></summary>
+                        <table className="num" style={{ marginTop: 6 }}><tbody>
+                          {cats.slice(0, 12).map((c) => (
+                            <tr key={c.category}><td className="small">{c.category === '-UNKNOWN-' ? 'Not categorized' : c.category}</td><td className="r small">{usd(c.value)}</td><td className="r small muted">{pc((c.value / Number(l.cost_value)) * 100)}</td></tr>
+                          ))}
+                          {cats.length > 12 && <tr><td className="small muted">+ {cats.length - 12} more</td><td className="r small">{usd(cats.slice(12).reduce((t, c) => t + c.value, 0))}</td><td /></tr>}
+                        </tbody></table>
+                      </details>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {snap && (
               <section className="card">
                 <h2 style={{ marginBottom: 6 }}>Target days of stock</h2>
-                <span className="small muted">How many days of sales each department should keep on hand. Starting points: beer &amp; mixers 14, liquor 45, wine 60, everything else 30. Applies to all stores.</span>
+                <span className="small muted">How many days of sales each department should keep on hand. Starting points (typical for a liquor store): beer, soda, ice &amp; tobacco 30, liquor 75, wine &amp; sparkling 100, everything else 45. Applies to all stores.</span>
                 <form action={saveTargets} className="row" style={{ marginTop: 10, alignItems: 'flex-end' }}>
                   {a.rows.filter((r) => r.status !== 'not_counted' || r.inventory).map((r) => (
                     <div key={r.department} className="field" style={{ flex: '0 1 130px' }}>

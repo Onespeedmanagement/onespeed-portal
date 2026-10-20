@@ -20,6 +20,7 @@ create table if not exists inventory_lines (
   retail_value numeric(14,2),
   primary key (snapshot_id, department)
 );
+alter table inventory_lines add column if not exists categories jsonb;   -- [{category, value}] inside the department
 
 alter table inventory_snapshots enable row level security;
 alter table inventory_lines enable row level security;
