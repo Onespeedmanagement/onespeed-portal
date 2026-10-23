@@ -56,7 +56,8 @@ export async function importHistory(_prev: HistoryResult | null, form: FormData)
       continue;
     }
     const { error } = await supabase.from('monthly_history').upsert(list.map((m) => ({
-      business_id: biz.id, month: m.month, revenue: m.revenue, customers: m.customers, profit_pct: m.profitPct,
+      business_id: biz.id, month: m.month, revenue: m.revenue, profit_pct: m.profitPct,
+      customers: m.customers ?? (m.ticket && m.revenue ? Math.round(m.revenue / m.ticket) : null),
       source: file.name, updated_by: me.email, updated_at: new Date().toISOString(),
     })), { onConflict: 'business_id,month' });
     const short = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -74,7 +75,11 @@ export async function saveMonth(_prev: string | null, form: FormData): Promise<s
   const businessId = String(form.get('business_id') ?? '');
   const month = String(form.get('month') ?? '');
   const n = (k: string) => { const v = String(form.get(k) ?? '').replace(/[$,%\s]/g, ''); return v === '' ? null : Number(v); };
-  const revenue = n('revenue'), customers = n('customers'), profitPct = n('profit_pct');
+  const revenue = n('revenue'), profitPct = n('profit_pct'), ticket = n('ticket');
+  let customers = n('customers');
+  if (ticket != null && Number.isNaN(ticket)) return 'Avg ticket must be a dollar amount (or left blank).';
+  // Only an average ticket given: customers = revenue ÷ ticket, so the dashboard shows that ticket
+  if (customers == null && ticket != null && ticket > 0 && revenue != null && revenue > 0) customers = revenue / ticket;
   if (!businessId || !/^\d{4}-\d{2}$/.test(month)) return 'Pick a store and a month.';
   if (revenue == null || !(revenue > 0)) return 'Enter the revenue for that month.';
   if ([customers, profitPct].some((v) => v != null && Number.isNaN(v))) return 'Customers and profit % must be numbers (or left blank).';

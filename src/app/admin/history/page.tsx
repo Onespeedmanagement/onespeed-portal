@@ -9,6 +9,7 @@ import { MonthForm } from './MonthForm';
 export const dynamic = 'force-dynamic';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const usd2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const monthShort = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 
 export default async function HistoryPage() {
@@ -45,7 +46,7 @@ export default async function HistoryPage() {
                     <td style={{ whiteSpace: 'nowrap' }}>{s.name}</td>
                     {months.map((m) => {
                       const h = cell(s.id, m);
-                      return <td key={m} className="r small" title={h ? `${h.customers ?? '—'} customers · ${h.profit_pct ?? '—'}% profit` : ''}>{h ? usd.format(Number(h.revenue)) : '—'}</td>;
+                      return <td key={m} className="r small" title={h ? `${h.customers ?? '—'} customers · avg ticket ${h.customers ? usd2.format(Number(h.revenue) / Number(h.customers)) : '—'} · ${h.profit_pct ?? '—'}% profit` : ''}>{h ? usd.format(Number(h.revenue)) : '—'}</td>;
                     })}
                   </tr>
                 ))}
