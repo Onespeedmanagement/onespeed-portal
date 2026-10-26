@@ -338,6 +338,17 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
               <section className="card scroll">
                 <h2 style={{ marginBottom: 4 }}>Same service, store by store (per month)</h2>
                 <span className="small muted">From the bank register and Chase cards. Red = 20%+ more than the cheapest store. The contract column checks the Contracts page; add any that are missing so you get renewal reminders.</span>
+                {(() => {
+                  const have = (src: AT['source'], id: string) => txns.some((t) => t.source === src && t.business_id === id);
+                  const missing = stores.map((s) => ({ s, reg: have('register', s.id), card: have('chase', s.id) })).filter((x) => !x.reg || !x.card);
+                  return missing.length > 0 && (
+                    <div className="notice warn" style={{ marginTop: 8 }}>
+                      A store only shows here once its data is in. Still missing:{' '}
+                      {missing.map(({ s, reg, card }) => `${s.name} (${[!reg && 'bank register', !card && 'Chase'].filter(Boolean).join(' + ')})`).join(' · ')}.
+                      {' '}Bank registers fill in as the bookkeeper does each store’s daily QuickBooks upload; Chase files are uploaded on the Chase cards tab.
+                    </div>
+                  );
+                })()}
                 {svc.length === 0 ? <p className="muted small">Upload the stores’ bank registers to compare.</p> : (
                   <table className="num" style={{ minWidth: 900, marginTop: 8 }}>
                     <thead><tr><th>Service</th><th>Store</th><th>Vendor</th><th className="r">Per month</th><th className="r">vs cheapest</th><th>Contract</th></tr></thead>
