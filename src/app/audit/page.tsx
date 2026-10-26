@@ -19,7 +19,7 @@ const FLAG_LABEL: Record<Flag['kind'], string> = {
   duplicate: 'Possible duplicate', subscription: 'Recurring', personal: 'Personal / unclear', too_often: 'Bought often, small amounts', price_up: 'Price went up', store_price: 'Store pays more', spike: 'Unusual month', big: 'Large one-time',
 };
 
-export default async function AuditPage({ searchParams }: { searchParams: Promise<{ tab?: string; show?: string }> }) {
+export default async function AuditPage({ searchParams }: { searchParams: Promise<{ tab?: string; show?: string; store?: string }> }) {
   const me = await requireRole('admin');
   const sp = await searchParams;
   const tab: Tab = (TABS.find(([k]) => k === sp.tab)?.[0] ?? 'summary') as Tab;
@@ -54,6 +54,10 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const statusOf = (k: string) => reviews.get(k)?.status ?? 'open';
   const dismissed = new Set([...reviews.values()].filter((r) => r.status === 'ok' || r.status === 'resolved').map((r) => r.key));
   const showAll = sp.show === 'all';
+  // Store filter: '' = all stores (lists grouped by store), a store id, or 'company' (cards not tied to one store)
+  const storeFilter = sp.store ?? '';
+  const inStore = (b: string | null) => !storeFilter || (storeFilter === 'company' ? b == null : b === storeFilter);
+  const qs = (extra: Record<string, string>) => '?' + new URLSearchParams({ ...(storeFilter ? { store: storeFilter } : {}), ...extra }).toString();
   const allFlags = findFlags(txns, stores);
   const openFlags = allFlags;   // each list hides done items itself
   const todo = allFlags.filter((f) => !dismissed.has(f.key));
@@ -73,6 +77,26 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
   const STATUS: Record<string, [string, string]> = { open: ['bad', 'To check'], checking: ['warn', 'Checking'], resolved: ['good', 'Resolved'], ok: ['good', 'OK, no action'] };
   const FlagList = ({ list, empty }: { list: Flag[]; empty: string }) => {
+    const mine = list.filter((f) => inStore(f.business_id));
+    // All stores: one block per store so items don't get mixed up
+    if (!storeFilter) {
+      const ids = [...new Set(mine.map((f) => f.business_id))].sort((a, b) => name(a).localeCompare(name(b)));
+      if (ids.length > 1) {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {ids.map((id) => (
+              <div key={String(id)}>
+                <h3 style={{ fontSize: 16, margin: '6px 0 0', color: 'var(--green)' }}>{id ? name(id) : 'Company / several stores'}</h3>
+                <FlagRows list={mine.filter((f) => f.business_id === id)} empty="Nothing flagged." />
+              </div>
+            ))}
+          </div>
+        );
+      }
+    }
+    return <FlagRows list={mine} empty={empty} />;
+  };
+  const FlagRows = ({ list, empty }: { list: Flag[]; empty: string }) => {
     const shown = showAll ? list : list.filter((f) => !dismissed.has(f.key));
     const hidden = list.length - shown.length;
     return shown.length === 0 ? <p className="muted small">{empty}{hidden ? ` (${hidden} done: add &show=all to the address, or use the To-do list tab, to see them)` : ''}</p> : (
@@ -114,7 +138,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   };
 
   const CategoryTable = ({ list, hideNonSpend }: { list: AT[]; hideNonSpend?: boolean }) => {
-    const bc = byCategory(hideNonSpend ? list.filter((t) => !NOT_EXPENSES.includes(t.category)) : list, stores);
+    const scoped = list.filter((t) => inStore(t.business_id));
+    const bc = byCategory(hideNonSpend ? scoped.filter((t) => !NOT_EXPENSES.includes(t.category)) : scoped, stores);
     if (!bc.rows.length) return <p className="muted small">Nothing loaded yet.</p>;
     return (
       <table className="num" style={{ minWidth: 300 + bc.cols.length * 150 }}>
@@ -153,7 +178,16 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
           <span className="small muted">Amazon, Chase cards and the bank register for every store, sorted into categories and checked for savings. Only Ujash and Vrajesh can see this.</span>
         </div>
         <nav className="row" style={{ gap: 6, borderBottom: '1px solid var(--line)', paddingBottom: 8 }}>
-          {TABS.map(([k, l]) => <a key={k} href={`/audit?tab=${k}`} className={`btn ${tab === k ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 36, padding: '6px 14px' }}>{l}</a>)}
+          {TABS.map(([k, l]) => <a key={k} href={`/audit${qs({ tab: k })}`} className={`btn ${tab === k ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 36, padding: '6px 14px' }}>{l}</a>)}
+          <form method="get" className="row" style={{ marginLeft: 'auto', gap: 6 }}>
+            <input type="hidden" name="tab" value={tab} />
+            <select name="store" defaultValue={storeFilter} aria-label="Store" style={{ width: 'auto', minHeight: 36 }}>
+              <option value="">All stores</option>
+              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <option value="company">Company / several stores</option>
+            </select>
+            <button className="btn secondary" type="submit" style={{ minHeight: 36, padding: '6px 12px' }}>Show</button>
+          </form>
         </nav>
 
         {tab === 'summary' && (
@@ -209,7 +243,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
               </section>
               <section className="card">
                 <div className="row between"><h2>Everything to look into</h2>
-                  <a href={showAll ? '/audit?tab=review' : '/audit?tab=review&show=all'} className="small">{showAll ? 'Hide resolved / OK' : 'Show resolved / OK too'}</a></div>
+                  <a href={`/audit${qs(showAll ? { tab: 'review' } : { tab: 'review', show: 'all' })}`} className="small">{showAll ? 'Hide resolved / OK' : 'Show resolved / OK too'}</a></div>
                 <span className="small muted">Duplicates and personal-looking charges first, then large one-offs and subscriptions. Set the status, who’s checking, and a note; record any refund or saving.</span>
                 <FlagList list={list} empty="Nothing to look into." />
               </section>
@@ -218,7 +252,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         })()}
 
         {tab === 'amazon' && (() => {
-          const am = bySource('amazon');
+          const am = bySource('amazon').filter((t) => inStore(t.business_id));
           const items = topItems(am, stores);
           const byCount = [...items].sort((a, b) => b.orders - a.orders || b.spend - a.spend).slice(0, 15);
           const top25 = items.slice(0, 25);
