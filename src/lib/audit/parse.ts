@@ -44,9 +44,9 @@ function header(g: unknown[][], must: RegExp[]): { h: number; col: (re: RegExp) 
   return null;
 }
 // Same charge twice in one file is real (two identical purchases): number repeats so both are kept
-function fingerprints<T extends { key: string }>(rows: T[]): (T & { fingerprint: string })[] {
+function fingerprints<T extends { key: string }>(rows: T[]): (Omit<T, 'key'> & { fingerprint: string })[] {
   const seen = new Map<string, number>();
-  return rows.map((r) => { const n = (seen.get(r.key) ?? 0) + 1; seen.set(r.key, n); return { ...r, fingerprint: `${r.key}|${n}` }; });
+  return rows.map(({ key, ...rest }) => { const n = (seen.get(key) ?? 0) + 1; seen.set(key, n); return { ...rest, fingerprint: `${key}|${n}` }; });
 }
 
 export function parseAmazon(bytes: Uint8Array): Parsed {

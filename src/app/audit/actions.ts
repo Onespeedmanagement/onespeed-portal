@@ -60,7 +60,11 @@ export async function uploadAudit(_p: UploadState, form: FormData): Promise<Uplo
   }).select('id').single();
   if (error || !f) return { error: 'Couldn’t save the file.' };
   for (let i = 0; i < fresh.length; i += 500) {
-    const chunk = fresh.slice(i, i + 500).map((t) => ({ ...t, file_id: f.id, source, business_id: businessId, category: categorize(source, t.vendor, t.item, rules, internal) }));
+    const chunk = fresh.slice(i, i + 500).map((t) => ({
+      file_id: f.id, source, business_id: businessId, txn_date: t.txn_date, vendor: t.vendor, item: t.item, item_key: t.item_key,
+      qty: t.qty, unit_price: t.unit_price, amount: t.amount, ref: t.ref, fingerprint: t.fingerprint,
+      category: categorize(source, t.vendor, t.item, rules, internal),
+    }));
     const { error: e2 } = await supabase.from('audit_txns').insert(chunk);
     if (e2) { await supabase.from('audit_files').delete().eq('id', f.id); return { error: `Couldn’t save the rows: ${e2.message}` }; }
   }
