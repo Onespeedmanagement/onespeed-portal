@@ -66,10 +66,10 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   // Card sales from the POS reports, for the processing-fee rate
   const regRange = range(txns.filter((t) => t.source === 'register'));
   const cardSales: { business_id: string; amount: number; from: string; to: string }[] = [];
-  if (regRange.from) for (const s of stores) {
-    const { data } = await supabase.from('pos_daily').select('business_date, card_sales').eq('business_id', s.id).gte('business_date', regRange.from).order('business_date').limit(1000);
+  if (regRange.from) await Promise.all(stores.map(async (s) => {
+    const { data } = await supabase.from('pos_daily').select('business_date, card_sales').eq('business_id', s.id).gte('business_date', regRange.from!).order('business_date').limit(1000);
     if (data?.length) cardSales.push({ business_id: s.id, amount: data.reduce((a, r) => a + Number(r.card_sales ?? 0), 0), from: data[0].business_date, to: data[data.length - 1].business_date });
-  }
+  }));
   const opps = opportunities(txns, stores, todo, alts, cardSales);
   const name = (id: string | null) => stores.find((s) => s.id === id)?.name ?? 'Company card';
   const bySource = (src: AT['source']) => txns.filter((t) => t.source === src);

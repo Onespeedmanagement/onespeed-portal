@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { supabaseServer, VIEW_AS_COOKIE } from './supabase/server';
 
@@ -8,7 +9,7 @@ export type Me = { email: string; role: Role; displayName: string | null; viewin
 
 // The signed-in person, only if they are on the portal's list and active.
 // An admin using "View as" gets the other person instead (read only).
-export async function getMe(): Promise<Me | null> {
+export const getMe = cache(async (): Promise<Me | null> => {
   const supabase = await supabaseServer({ real: true });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) return null;
@@ -26,7 +27,7 @@ export async function getMe(): Promise<Me | null> {
     if (other) return { email: other.email, role: other.role as Role, displayName: other.display_name, viewingAs: real.email };
   }
   return real;
-}
+});
 
 export const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', bookkeeper: 'Bookkeeper', manager: 'Manager', investor: 'Investor', school_bookkeeper: 'Goddard bookkeeper', school_admin: 'Goddard admin' };
 

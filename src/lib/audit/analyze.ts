@@ -239,8 +239,9 @@ export function opportunities(txns: AT[], stores: Store[], fl: Flag[], alt: { it
   if (subs.length) out.push({ title: `${subs.length} recurring card charges to review`, tab: 'chase', perYear: cancellable.reduce((a, f) => a + (f.yearly ?? 0), 0) || null, action: 'Cancel what isn’t used',
     detail: `Biggest: ${subs.sort((a, b) => (b.yearly ?? 0) - (a.yearly ?? 0)).slice(0, 4).map((f) => `${f.title} ${usd(f.amount)}/mo`).join(', ')}. The figure is subscriptions, listings and services you could cancel (not supplies or utilities), if all were.` });
 
+  const items = alt.length ? topItems(txns, stores) : [];
   const alts = alt.map((a) => {
-    const it = topItems(txns, stores).find((i) => i.key === a.item_key);
+    const it = items.find((i) => i.key === a.item_key);
     return it ? { it, a, save: (it.avgPrice - a.unit_price) * it.yearlyQty } : null;
   }).filter((x): x is NonNullable<typeof x> => !!x && x.save > 0);
   if (alts.length) out.push({ title: 'Amazon items cheaper elsewhere', tab: 'amazon', perYear: alts.reduce((a, x) => a + x.save, 0), action: 'Switch supplier / buy in bulk',

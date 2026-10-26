@@ -13,16 +13,13 @@ export default async function InvestmentsPage() {
     supabase.from('businesses').select('id, name, portfolio_id').eq('active', true).order('name'),
     supabase.from('portfolios').select('id, name, status, kind').order('sort'),
   ]);
-  const { data: latest } = self?.can_see_sales
-    ? await supabase.from('pos_daily').select('business_id, business_date, total_sales, profit_pct').order('business_date', { ascending: false }).limit(100)
-    : { data: [] };
-  const { data: cash } = self?.can_see_cash
-    ? await supabase.from('closeout_results').select('business_id, business_date, deposit_amount, difference').order('business_date', { ascending: false }).limit(100)
-    : { data: [] };
-  const { data: qb } = self?.can_see_owners
-    ? await supabase.from('owners_report').select('business_id, business_date, qb_balance').order('business_date', { ascending: false }).limit(100)
-    : { data: [] };
-  const { data: schoolMonths } = await supabase.from('school_months').select('business_id, month, revenue, operating_income').order('month', { ascending: false }).limit(100);
+  const none = Promise.resolve({ data: [] as never[] });
+  const [{ data: latest }, { data: cash }, { data: qb }, { data: schoolMonths }] = await Promise.all([
+    self?.can_see_sales ? supabase.from('pos_daily').select('business_id, business_date, total_sales, profit_pct').order('business_date', { ascending: false }).limit(100) : none,
+    self?.can_see_cash ? supabase.from('closeout_results').select('business_id, business_date, deposit_amount, difference').order('business_date', { ascending: false }).limit(100) : none,
+    self?.can_see_owners ? supabase.from('owners_report').select('business_id, business_date, qb_balance').order('business_date', { ascending: false }).limit(100) : none,
+    supabase.from('school_months').select('business_id, month, revenue, operating_income').order('month', { ascending: false }).limit(100),
+  ]);
   const usd0 = (n: number | null) => (n == null ? '—' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
   const groups = (portfolios ?? []).map((p) => ({ ...p, list: (biz ?? []).filter((b) => b.portfolio_id === p.id) })).filter((g) => g.list.length);
 

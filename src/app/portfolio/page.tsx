@@ -12,14 +12,14 @@ type Biz = { id: string; name: string; portfolio_id: string; pos_match?: string 
 export default async function PortfolioPage() {
   const me = await requireRole('admin');
   const supabase = await supabaseServer();
-  const [{ data: portfolios }, { data: businesses }, { data: latest }] = await Promise.all([
+  const [{ data: portfolios }, { data: businesses }, { data: latest }, { data: schoolMonths }] = await Promise.all([
     supabase.from('portfolios').select('id, name, status').order('sort'),
     supabase.from('businesses').select('id, name, portfolio_id, pos_match').eq('active', true).order('name'),
     supabase.from('pos_daily').select('business_id, business_date, total_sales, profit_pct, cash_sales, card_sales')
       .order('business_date', { ascending: false }).limit(200),
+    supabase.from('school_months').select('business_id, month, revenue, operating_income').order('month', { ascending: false }).limit(200),
   ]);
   const lastFor = (id: string) => latest?.find((r) => r.business_id === id);
-  const { data: schoolMonths } = await supabase.from('school_months').select('business_id, month, revenue, operating_income').order('month', { ascending: false }).limit(200);
   const schoolFor = (id: string) => schoolMonths?.find((r) => r.business_id === id);
   const usd0 = (n: number | null) => (n == null ? '—' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
 
