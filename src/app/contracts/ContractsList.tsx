@@ -16,7 +16,7 @@ const PILL: Record<Urgency, [string, string]> = {
 };
 const nice = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
-export async function ContractsList({ me, school, sp }: { me: Me; school: boolean; sp: { show?: string; add?: string } }) {
+export async function ContractsList({ me, school, sp }: { me: Me; school: boolean; sp: { show?: string; add?: string; vendor?: string; category?: string; store?: string } }) {
   const supabase = await supabaseServer();
   const today = todayNY();
   const scope = await contractScope(supabase, school);
@@ -79,7 +79,8 @@ export async function ContractsList({ me, school, sp }: { me: Me; school: boolea
         {(sp.add || list.length === 0) && (
           <section id="add" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <h2>Add a contract</h2>
-            <ContractForm businesses={businesses} admins={scope.people} defaultRemind={[me.email]} portfolioId={scope.defaultPortfolio} allLabel={scope.allLabel} />
+            <ContractForm businesses={businesses} admins={scope.people} defaultRemind={[me.email]} portfolioId={scope.defaultPortfolio} allLabel={scope.allLabel}
+              prefill={{ vendor: sp.vendor, category: sp.category, business_id: sp.store }} />
           </section>
         )}
       </main>

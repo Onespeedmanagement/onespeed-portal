@@ -5,10 +5,12 @@ import { CATEGORIES, type Contract } from '@/lib/contracts';
 
 type Opt = { id: string; name: string };
 
-export function ContractForm({ contract, businesses, admins, defaultRemind, portfolioId, allLabel }: { contract?: Contract; businesses: Opt[]; admins: { email: string; name: string }[]; defaultRemind: string[]; portfolioId: string | null; allLabel: string }) {
+export function ContractForm({ contract, businesses, admins, defaultRemind, portfolioId, allLabel, prefill }: { contract?: Contract; businesses: Opt[]; admins: { email: string; name: string }[]; defaultRemind: string[]; portfolioId: string | null; allLabel: string; prefill?: { vendor?: string; category?: string; business_id?: string } }) {
   const [state, action, pending] = useActionState<ContractState, FormData>(contract ? updateContract : createContract, {});
   const known = (CATEGORIES as readonly string[]).includes(contract?.category ?? '');
-  const [cat, setCat] = useState(contract ? (known ? contract.category : 'Other') : 'Insurance');
+  const fromAudit = prefill?.category ? (/trash/i.test(prefill.category) ? 'Trash' : /alarm|security/i.test(prefill.category) ? 'Security / alarm' : /pest/i.test(prefill.category) ? 'Pest control'
+    : /utilit|phone|internet/i.test(prefill.category) ? 'Utilities' : /insurance/i.test(prefill.category) ? 'Insurance' : /software/i.test(prefill.category) ? 'POS / software' : 'Other') : null;
+  const [cat, setCat] = useState(contract ? (known ? contract.category : 'Other') : fromAudit ?? 'Insurance');
   const [auto, setAuto] = useState(contract?.auto_renews ?? true);
   const remind = contract?.remind_emails ?? defaultRemind;
   return (
@@ -23,9 +25,9 @@ export function ContractForm({ contract, businesses, admins, defaultRemind, port
         {cat === 'Other' && <div className="field"><label htmlFor="category_other">What kind?</label>
           <input id="category_other" name="category_other" type="text" defaultValue={known ? '' : contract?.category} placeholder="e.g. Linen service" /></div>}
         <div className="field"><label htmlFor="vendor">Vendor / landlord</label>
-          <input id="vendor" name="vendor" type="text" defaultValue={contract?.vendor} required placeholder="e.g. Waste Management" /></div>
+          <input id="vendor" name="vendor" type="text" defaultValue={contract?.vendor ?? prefill?.vendor} required placeholder="e.g. Waste Management" /></div>
         <div className="field"><label htmlFor="business_id">For</label>
-          <select id="business_id" name="business_id" defaultValue={contract?.business_id ?? ''}>
+          <select id="business_id" name="business_id" defaultValue={contract?.business_id ?? prefill?.business_id ?? ''}>
             <option value="">{allLabel}</option>
             {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select></div>
