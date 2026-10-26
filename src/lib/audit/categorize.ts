@@ -31,7 +31,7 @@ const VENDOR_RULES: [RegExp, string][] = [
   [/orkin|terminix|pest|rentokil|aptive|ehrlich|bug|exterminat/i, 'Pest control'],
   [/delmarva|electric|power\b|pseg|pepco|\bbge\b|exelon|artesian|water (co|dept|authority|util)|suez|veolia|\bgas (co|company|util)|chesapeake util|energy\b|utility/i, 'Utilities'],
   [/insurance|hanover|state farm|geico|travelers|hartford|progressive|liberty mutual|nationwide|erie\b|chubb|cna\b/i, 'Insurance'],
-  [/landlord|rent\b|lease|property|realty|management co|plaza|place llc|route one llc|center llc/i, 'Rent & property'],
+  [/fusco|churchmans place|landlord|rent\b|lease|property|realty|management co|plaza|place llc|route one llc|center llc/i, 'Rent & property'],
   [/sba\b|loan|wsfs bank|mortgage|finance charge|interest/i, 'Loans & bank'],
   [/\bllp\b|attorney|law (firm|office)|\bcpa\b|accounting|bookkeep|tax prep|consult|, pa\b|\bp\.?a\.?$/i, 'Professional fees'],
   [/facebook|facebk|meta ads|google \*?ads|yelp|advert|marketing|print(ing)?\b|vistaprint|flyer|insta signs|signs plus|customink/i, 'Advertising & signs'],

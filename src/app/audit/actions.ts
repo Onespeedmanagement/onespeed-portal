@@ -124,6 +124,23 @@ export async function saveAltPrice(form: FormData) {
   revalidatePath('/audit');
 }
 
+// The review list: status, who's on it, note, any refund / saving
+export async function saveFlag(form: FormData) {
+  const me = await requireRole('admin');
+  const supabase = await supabaseServer();
+  const key = String(form.get('key') ?? '');
+  const status = String(form.get('status') ?? 'open');
+  if (!key || !['open', 'checking', 'resolved', 'ok'].includes(status)) return;
+  const saved = Number(String(form.get('saved') ?? '').replace(/[$,\s]/g, ''));
+  await supabase.from('audit_dismissed').upsert({
+    key, status, note: String(form.get('note') ?? '').trim().slice(0, 500) || null,
+    assigned_to: String(form.get('assigned_to') ?? '').trim().slice(0, 80) || null,
+    saved: Number.isFinite(saved) && saved > 0 ? saved : null,
+    dismissed_by: me.email, updated_at: new Date().toISOString(),
+  });
+  revalidatePath('/audit');
+}
+
 export async function dismissFlag(form: FormData) {
   await requireRole('admin');
   const supabase = await supabaseServer();

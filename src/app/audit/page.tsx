@@ -7,11 +7,11 @@ import { categorize, NOT_EXPENSES, type Rule } from '@/lib/audit/categorize';
 import { currentTerm } from '@/lib/contracts';
 import { todayNY } from '@/lib/dates';
 import { RuleForm, UploadBox } from './Forms';
-import { deleteAuditFile, deleteRule, dismissFlag, saveAltPrice } from './actions';
+import { deleteAuditFile, deleteRule, saveAltPrice, saveFlag } from './actions';
 
 export const dynamic = 'force-dynamic';
 
-const TABS = [['summary', 'Summary'], ['amazon', 'Amazon'], ['chase', 'Chase cards'], ['expenses', 'Store expenses'], ['categories', 'Categories & files']] as const;
+const TABS = [['summary', 'Summary'], ['review', 'To-do list'], ['amazon', 'Amazon'], ['chase', 'Chase cards'], ['expenses', 'Store expenses'], ['categories', 'Categories & files']] as const;
 type Tab = (typeof TABS)[number][0];
 const pc = (n: number) => `${n.toFixed(n < 10 ? 1 : 0)}%`;
 const nice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—');
@@ -19,7 +19,7 @@ const FLAG_LABEL: Record<Flag['kind'], string> = {
   duplicate: 'Possible duplicate', subscription: 'Recurring', personal: 'Personal / unclear', too_often: 'Bought often, small amounts', price_up: 'Price went up', store_price: 'Store pays more', spike: 'Unusual month', big: 'Large one-time',
 };
 
-export default async function AuditPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function AuditPage({ searchParams }: { searchParams: Promise<{ tab?: string; show?: string }> }) {
   const me = await requireRole('admin');
   const sp = await searchParams;
   const tab: Tab = (TABS.find(([k]) => k === sp.tab)?.[0] ?? 'summary') as Tab;
@@ -30,7 +30,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     supabase.from('audit_files').select('*').order('uploaded_at', { ascending: false }),
     supabase.from('audit_rules').select('id, pattern, category').order('created_at'),
     supabase.from('audit_alt_prices').select('item_key, supplier, unit_price, note'),
-    supabase.from('audit_dismissed').select('key'),
+    supabase.from('audit_dismissed').select('key, status, note, assigned_to, saved, dismissed_by, updated_at'),
     supabase.from('contracts').select('id, vendor, category, business_id, end_date, notice_days, auto_renews, renewal_months, status'),
   ]);
   const stores = storesRaw ?? [];
@@ -49,9 +49,14 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     for (const t of unsorted) { t.category = categorize(t.source, t.vendor, t.item, (rules ?? []) as Rule[], internal); groups.set(t.category, [...(groups.get(t.category) ?? []), t.id]); }
     for (const [category, ids] of groups) for (let i = 0; i < ids.length; i += 300) await supabase.from('audit_txns').update({ category }).in('id', ids.slice(i, i + 300));
   }
-  const dismissed = new Set((dismissedRows ?? []).map((d) => d.key));
+  type Review = { key: string; status: string; note: string | null; assigned_to: string | null; saved: number | null; dismissed_by: string; updated_at: string };
+  const reviews = new Map(((dismissedRows ?? []) as Review[]).map((d) => [d.key, d]));
+  const statusOf = (k: string) => reviews.get(k)?.status ?? 'open';
+  const dismissed = new Set([...reviews.values()].filter((r) => r.status === 'ok' || r.status === 'resolved').map((r) => r.key));
+  const showAll = sp.show === 'all';
   const allFlags = findFlags(txns, stores);
-  const openFlags = allFlags.filter((f) => !dismissed.has(f.key));
+  const openFlags = allFlags;   // each list hides done items itself
+  const todo = allFlags.filter((f) => !dismissed.has(f.key));
   const alts = (alt ?? []).map((a) => ({ ...a, unit_price: Number(a.unit_price) }));
 
   // Card sales from the POS reports, for the processing-fee rate
@@ -61,28 +66,52 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     const { data } = await supabase.from('pos_daily').select('business_date, card_sales').eq('business_id', s.id).gte('business_date', regRange.from).order('business_date').limit(1000);
     if (data?.length) cardSales.push({ business_id: s.id, amount: data.reduce((a, r) => a + Number(r.card_sales ?? 0), 0), from: data[0].business_date, to: data[data.length - 1].business_date });
   }
-  const opps = opportunities(txns, stores, openFlags, alts, cardSales);
+  const opps = opportunities(txns, stores, todo, alts, cardSales);
   const name = (id: string | null) => stores.find((s) => s.id === id)?.name ?? 'Company card';
   const bySource = (src: AT['source']) => txns.filter((t) => t.source === src);
   const categories = [...new Set([...txns.map((t) => t.category), ...(rules ?? []).map((r) => r.category)])].sort();
 
-  const FlagList = ({ list, empty }: { list: Flag[]; empty: string }) => (
-    list.length === 0 ? <p className="muted small">{empty}</p> : (
-      <table style={{ minWidth: 640 }}>
-        <tbody>
-          {list.map((f) => (
-            <tr key={f.key}>
-              <td style={{ width: 150 }}><span className={`pill ${f.kind === 'duplicate' || f.kind === 'personal' ? 'bad' : 'warn'}`}>{FLAG_LABEL[f.kind]}</span></td>
-              <td><strong>{f.title.slice(0, 80)}</strong><div className="small muted">{f.detail}</div></td>
-              <td className="r" style={{ whiteSpace: 'nowrap' }}>
-                <form action={dismissFlag}><input type="hidden" name="key" value={f.key} /><button className="link small" type="submit">Looks fine, hide</button></form>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )
-  );
+  const STATUS: Record<string, [string, string]> = { open: ['bad', 'To check'], checking: ['warn', 'Checking'], resolved: ['good', 'Resolved'], ok: ['good', 'OK, no action'] };
+  const FlagList = ({ list, empty }: { list: Flag[]; empty: string }) => {
+    const shown = showAll ? list : list.filter((f) => !dismissed.has(f.key));
+    const hidden = list.length - shown.length;
+    return shown.length === 0 ? <p className="muted small">{empty}{hidden ? ` (${hidden} done: add &show=all to the address, or use the To-do list tab, to see them)` : ''}</p> : (
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {shown.map((f) => {
+          const r = reviews.get(f.key);
+          return (
+            <div key={f.key} style={{ padding: '10px 0', borderTop: '1px solid var(--line-soft)', display: 'flex', flexDirection: 'column', gap: 6, opacity: f.stopped ? 0.7 : 1 }}>
+              <div className="row between" style={{ alignItems: 'flex-start' }}>
+                <div style={{ flex: '1 1 380px' }}>
+                  <span className={`pill ${f.kind === 'duplicate' || f.kind === 'personal' ? 'bad' : 'warn'}`}>{f.stopped ? 'Stopped' : FLAG_LABEL[f.kind]}</span>{' '}
+                  <strong>{f.title.slice(0, 80)}</strong> <span className={`pill ${STATUS[statusOf(f.key)][0]}`}>{STATUS[statusOf(f.key)][1]}</span>
+                  <div className="small muted" style={{ marginTop: 4 }}>{f.detail}</div>
+                  {f.items && f.items.length > 0 && (
+                    <details className="small" style={{ marginTop: 4 }}><summary style={{ cursor: 'pointer' }}>{f.items.length} charge{f.items.length === 1 ? '' : 's'}</summary>
+                      <table className="num" style={{ marginTop: 4 }}><tbody>{f.items.map((it, i) => (
+                        <tr key={i}><td>{it.date}</td><td className="r">{usd(it.amount)}</td><td className="muted">{it.card ? `card …${it.card}` : ''}</td><td className="muted">{it.note ?? ''}</td></tr>
+                      ))}</tbody></table>
+                    </details>
+                  )}
+                  {r?.note && <div className="small" style={{ marginTop: 4 }}>📝 {r.note}{r.assigned_to ? ` · ${r.assigned_to}` : ''}{r.saved ? ` · saved ${usd(Number(r.saved))}` : ''} <span className="muted">({r.dismissed_by.split('@')[0]}, {new Date(r.updated_at).toLocaleDateString('en-US', { timeZone: 'America/New_York' })})</span></div>}
+                </div>
+                <form action={saveFlag} className="row" style={{ gap: 4, alignItems: 'flex-end', flex: '0 1 560px' }}>
+                  <input type="hidden" name="key" value={f.key} />
+                  <select name="status" defaultValue={statusOf(f.key)} aria-label="Status" style={{ width: 'auto', minHeight: 34 }}>
+                    {Object.entries(STATUS).map(([k, [, l]]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                  <input name="assigned_to" defaultValue={r?.assigned_to ?? ''} placeholder="Who" aria-label="Who is checking" style={{ width: 90, minHeight: 34 }} />
+                  <input name="note" defaultValue={r?.note ?? ''} placeholder="Note (what you found)" aria-label="Note" style={{ flex: '1 1 160px', minHeight: 34 }} />
+                  <input name="saved" defaultValue={r?.saved ?? ''} placeholder="$ saved" aria-label="Refund or saving" inputMode="decimal" style={{ width: 80, minHeight: 34 }} />
+                  <button className="btn secondary" type="submit" style={{ minHeight: 34, padding: '4px 10px' }}>Save</button>
+                </form>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const CategoryTable = ({ list, hideNonSpend }: { list: AT[]; hideNonSpend?: boolean }) => {
     const bc = byCategory(hideNonSpend ? list.filter((t) => !NOT_EXPENSES.includes(t.category)) : list, stores);
@@ -163,6 +192,30 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             </section>
           </>
         )}
+
+        {tab === 'review' && (() => {
+          const counts = { open: 0, checking: 0, resolved: 0, ok: 0 } as Record<string, number>;
+          for (const f of allFlags) counts[statusOf(f.key)]++;
+          const savedTotal = [...reviews.values()].reduce((a, r) => a + Number(r.saved ?? 0), 0);
+          const order: Flag['kind'][] = ['duplicate', 'personal', 'big', 'subscription', 'too_often', 'store_price', 'price_up', 'spike'];
+          const list = [...allFlags].filter((f) => showAll || !dismissed.has(f.key)).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || b.amount - a.amount);
+          return (
+            <>
+              <section className="grid num" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+                {[['To check', counts.open], ['Checking', counts.checking], ['Resolved', counts.resolved], ['OK, no action', counts.ok]].map(([l, n]) => (
+                  <div key={l} className="card"><span className="small muted">{l}</span><div style={{ fontSize: 24, fontWeight: 600 }}>{n}</div></div>
+                ))}
+                <div className="card"><span className="small muted">Refunds / savings recorded</span><div style={{ fontSize: 24, fontWeight: 600, color: 'var(--green)' }}>{usd(savedTotal)}</div></div>
+              </section>
+              <section className="card">
+                <div className="row between"><h2>Everything to look into</h2>
+                  <a href={showAll ? '/audit?tab=review' : '/audit?tab=review&show=all'} className="small">{showAll ? 'Hide resolved / OK' : 'Show resolved / OK too'}</a></div>
+                <span className="small muted">Duplicates and personal-looking charges first, then large one-offs and subscriptions. Set the status, who’s checking, and a note; record any refund or saving.</span>
+                <FlagList list={list} empty="Nothing to look into." />
+              </section>
+            </>
+          );
+        })()}
 
         {tab === 'amazon' && (() => {
           const am = bySource('amazon');
@@ -314,7 +367,6 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                   </tr>
                 ))}
               </tbody></table>
-              {dismissed.size > 0 && <p className="small muted" style={{ marginTop: 8 }}>{dismissed.size} flag{dismissed.size === 1 ? '' : 's'} marked “looks fine”.</p>}
             </section>
           </>
         )}

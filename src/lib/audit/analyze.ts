@@ -11,7 +11,7 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00
 export const yearly = (amount: number, from: string, to: string) => amount * (365 / Math.max(30, daysBetween(from, to) + 1));
 const month = (d: string) => d.slice(0, 7);
 // "NETFLIX.COM 866-579-7172 CA" and "NETFLIX.COM 800-..." → "netflix com"
-export const vendorKey = (v: string | null) => (v ?? '').toLowerCase().replace(/^(tst|sq|wci|sp|in|spo|fsp|py|pp|paypal|dd|ach)\s?\*\s?|^sp\s+/, '').replace(/[#*]+\S*/g, ' ').replace(/\d[\d\-./]*/g, ' ').replace(/\b(ca|ny|nj|de|pa|md|wa|tx|fl|il|ma|usa|us|inc|llc|com)\b/g, ' ').replace(/[^a-z&]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+export const vendorKey = (v: string | null) => (v ?? '').toLowerCase().replace(/^(tst|sq|wci|sp|in|spo|fsp|py|pp|paypal|dd|ach)\s?\*\s?|^sp\s+/, '').replace(/[#*]\s*\S*\d\S*/g, ' ').replace(/[*#]/g, ' ').replace(/\d[\d\-./]*/g, ' ').replace(/\b(ca|ny|nj|de|pa|md|wa|tx|fl|il|ma|usa|us|inc|llc|com)\b/g, ' ').replace(/[^a-z&]+/g, ' ').trim().split(' ').slice(0, 2).join(' ');
 
 export function range(txns: AT[]) {
   const d = txns.map((t) => t.txn_date).sort();
@@ -66,7 +66,8 @@ export function topItems(txns: AT[], stores: Store[]) {
   }).sort((a, b) => b.spend - a.spend);
 }
 
-export type Flag = { key: string; kind: 'duplicate' | 'subscription' | 'personal' | 'too_often' | 'price_up' | 'store_price' | 'spike' | 'big'; source: AT['source']; business_id: string | null; title: string; detail: string; amount: number; yearly?: number };
+export type FlagItem = { date: string; amount: number; card?: string | null; note?: string };
+export type Flag = { items?: FlagItem[]; stopped?: boolean; key: string; kind: 'duplicate' | 'subscription' | 'personal' | 'too_often' | 'price_up' | 'store_price' | 'spike' | 'big'; source: AT['source']; business_id: string | null; title: string; detail: string; amount: number; yearly?: number };
 
 export function flags(txns: AT[], stores: Store[]): Flag[] {
   const name = (id: string | null) => stores.find((s) => s.id === id)?.name ?? 'Company card';
@@ -80,13 +81,18 @@ export function flags(txns: AT[], stores: Store[]): Flag[] {
     if (a.source !== b.source || a.business_id !== b.business_id || a.amount !== b.amount || a.amount < 10) continue;
     const same = a.source === 'amazon' ? a.item_key === b.item_key && a.ref !== b.ref : vendorKey(a.vendor) === vendorKey(b.vendor);
     if (!same) continue;
+    const cardOf = (t: AT) => (t.ref && /^card /.test(t.ref) ? t.ref.slice(5) : null);
     out.push({ key: `dup:${a.id}:${b.id}`, kind: 'duplicate', source: a.source, business_id: a.business_id, title: a.source === 'amazon' ? (a.item ?? '') : (a.vendor ?? ''),
-      detail: `${usd(a.amount)} on ${a.txn_date} and again on ${b.txn_date}${a.source === 'amazon' ? ' (separate orders)' : ''} · ${name(a.business_id)}`, amount: a.amount });
+      detail: `${usd(a.amount)} on ${a.txn_date}${cardOf(a) ? ` (card …${cardOf(a)})` : ''} and again on ${b.txn_date}${cardOf(b) ? ` (card …${cardOf(b)})` : ''}${a.source === 'amazon' ? ` · orders ${a.ref} and ${b.ref}` : ''} · ${name(a.business_id)}`, amount: a.amount,
+      items: [a, b].map((t) => ({ date: t.txn_date, amount: t.amount, card: cardOf(t), note: t.vendor ?? undefined })) });
   }
 
   // Recurring charges (cards): same vendor in 3+ months at a similar amount
   const recur = new Map<string, AT[]>();
   for (const t of spendable) if (t.source === 'chase') { const k = `${t.business_id}|${vendorKey(t.vendor)}`; recur.set(k, [...(recur.get(k) ?? []), t]); }
+  const card = (t: AT) => (t.ref && /^card /.test(t.ref) ? t.ref.slice(5) : null);
+  const chaseEnd = new Map<string, string>();
+  for (const t of txns) if (t.source === 'chase') { const b = String(t.business_id); if (t.txn_date > (chaseEnd.get(b) ?? '')) chaseEnd.set(b, t.txn_date); }
   for (const [k, ts] of recur) {
     const months = new Set(ts.map((t) => month(t.txn_date)));
     if (months.size < 3) continue;
@@ -96,10 +102,21 @@ export function flags(txns: AT[], stores: Store[]): Flag[] {
     if (!steady) continue;
     const perMonth = median;   // typical charge (an annual renewal in the middle doesn't inflate it)
     const last = [...ts].sort((a, b) => a.txn_date.localeCompare(b.txn_date));
-    const up = last.length > 1 && last[last.length - 1].amount > last[0].amount * 1.05;
-    out.push({ key: `sub:${k}`, kind: 'subscription', source: 'chase', business_id: ts[0].business_id, title: ts[0].vendor ?? '',
-      detail: `about ${usd(perMonth)} a month for ${months.size} months (${ts[0].category})${up ? `, up from ${usd(last[0].amount)} to ${usd(last[last.length - 1].amount)}` : ''} · ${name(ts[0].business_id)}`,
-      amount: perMonth, yearly: perMonth * 12 });
+    const regular = last.filter((t) => Math.abs(t.amount - median) <= Math.max(2, median * 0.15));
+    const up = regular.length > 1 && regular[regular.length - 1].amount > regular[0].amount * 1.05;
+    // Stopped? No charge in the last 45 days of the download (and any refund after the last charge)
+    const lastDate = last[last.length - 1].txn_date;
+    const end = chaseEnd.get(String(ts[0].business_id)) ?? lastDate;
+    const refund = txns.find((t) => t.source === 'chase' && t.business_id === ts[0].business_id && t.amount < 0 && vendorKey(t.vendor) === vendorKey(ts[0].vendor) && t.txn_date >= lastDate);
+    const stopped = daysBetween(lastDate, end) > 45;
+    // An annual charge on top of the monthly ones (e.g. QuickBooks yearly plan + monthly plan)
+    const big = last.filter((t) => t.amount > median * 5);
+    out.push({ key: `sub:${k}`, kind: 'subscription', source: 'chase', business_id: ts[0].business_id, title: ts[0].vendor ?? '', stopped,
+      detail: stopped
+        ? `stopped: last charged ${lastDate}${refund ? ` and refunded ${usd(-refund.amount)} on ${refund.txn_date}` : ''}. Looks cancelled. Paid ${usd(ts.reduce((a, t) => a + t.amount, 0) + (refund?.amount ?? 0))} over ${months.size} months · ${name(ts[0].business_id)}`
+        : `about ${usd(perMonth)} a month for ${months.size} months (${ts[0].category})${up ? `, up from ${usd(regular[0].amount)} to ${usd(regular[regular.length - 1].amount)}` : ''}${big.length ? `, plus ${big.map((b) => `${usd(b.amount)} on ${b.txn_date}`).join(', ')}: check you’re not paying for a yearly plan and a monthly one` : ''} · ${name(ts[0].business_id)}`,
+      amount: perMonth, yearly: stopped ? 0 : perMonth * 12,
+      items: [...last.map((t) => ({ date: t.txn_date, amount: t.amount, card: card(t) })), ...(refund ? [{ date: refund.txn_date, amount: refund.amount, card: card(refund), note: 'refund' }] : [])] });
   }
 
   // Personal-looking or unclear card charges, grouped by merchant
@@ -111,7 +128,8 @@ export function flags(txns: AT[], stores: Store[]): Flag[] {
     const total = ts.reduce((a, t) => a + t.amount, 0);
     ts.sort((a, b) => a.txn_date.localeCompare(b.txn_date));
     out.push({ key: `per:${k}`, kind: 'personal', source: ts[0].source, business_id: ts[0].business_id, title: ts[0].vendor ?? '',
-      detail: `${ts.length > 1 ? `${ts.length} charges, ${usd(total)} (${ts[0].txn_date} – ${ts[ts.length - 1].txn_date})` : `${usd(total)} on ${ts[0].txn_date}`} · ${ts[0].category === 'Other' ? 'not clear what this is' : ts[0].category} · ${name(ts[0].business_id)}`, amount: total });
+      detail: `${ts.length > 1 ? `${ts.length} charges, ${usd(total)} (${ts[0].txn_date} – ${ts[ts.length - 1].txn_date})` : `${usd(total)} on ${ts[0].txn_date}`} · ${ts[0].category === 'Other' ? 'not clear what this is' : ts[0].category} · ${name(ts[0].business_id)}`, amount: total,
+      items: ts.map((t) => ({ date: t.txn_date, amount: t.amount, card: t.ref && /^card /.test(t.ref) ? t.ref.slice(5) : null })) });
   }
 
   // Amazon: bought often in small amounts (bulk candidates), prices creeping up, one store paying more
@@ -215,7 +233,7 @@ export function opportunities(txns: AT[], stores: Store[], fl: Flag[], alt: { it
       detail: `${per.map((p) => `${p.v} ≈ ${usd(p.perYear)}/yr`).join(' and ')}, ${per.length > 2 ? 'all' : 'both'} paid in the last 4 months. ${category === 'Phone & internet' ? 'Check whether the store needs both (e.g. two internet lines, or phones that could move to the same provider).' : 'If one covers the other, keep one; the figure is the cheaper one dropped.'}` });
   }
 
-  const subs = fl.filter((f) => f.kind === 'subscription');
+  const subs = fl.filter((f) => f.kind === 'subscription' && !f.stopped);
   const SUB_CATS = /software|real estate|personal|other|advertising|hiring/i;
   const cancellable = subs.filter((f) => SUB_CATS.test(f.detail));
   if (subs.length) out.push({ title: `${subs.length} recurring card charges to review`, tab: 'chase', perYear: cancellable.reduce((a, f) => a + (f.yearly ?? 0), 0) || null, action: 'Cancel what isn’t used',
