@@ -3,7 +3,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { AdminNav } from '@/components/AdminNav';
 import { byCategory, flags as findFlags, opportunities, range, services, topItems, usd, type AT, type Flag } from '@/lib/audit/analyze';
-import { NOT_EXPENSES } from '@/lib/audit/categorize';
+import { categorize, NOT_EXPENSES, type Rule } from '@/lib/audit/categorize';
 import { currentTerm } from '@/lib/contracts';
 import { todayNY } from '@/lib/dates';
 import { RuleForm, UploadBox } from './Forms';
@@ -16,7 +16,7 @@ type Tab = (typeof TABS)[number][0];
 const pc = (n: number) => `${n.toFixed(n < 10 ? 1 : 0)}%`;
 const nice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—');
 const FLAG_LABEL: Record<Flag['kind'], string> = {
-  duplicate: 'Possible duplicate', subscription: 'Recurring', personal: 'Personal / unclear', too_often: 'Bought often, small amounts', price_up: 'Price went up', store_price: 'Store pays more', spike: 'Unusual month',
+  duplicate: 'Possible duplicate', subscription: 'Recurring', personal: 'Personal / unclear', too_often: 'Bought often, small amounts', price_up: 'Price went up', store_price: 'Store pays more', spike: 'Unusual month', big: 'Large one-time',
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
@@ -39,6 +39,15 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     const { data } = await supabase.from('audit_txns').select('id, source, business_id, txn_date, vendor, item, item_key, qty, unit_price, amount, category, ref').order('id').range(page * 1000, page * 1000 + 999);
     txns.push(...(data ?? []).map((t) => ({ ...t, amount: Number(t.amount), qty: t.qty == null ? null : Number(t.qty), unit_price: t.unit_price == null ? null : Number(t.unit_price) }) as AT));
     if (!data || data.length < 1000) break;
+  }
+  // Rows that came in from the bookkeeper's daily QuickBooks upload aren't sorted yet: sort and save them now
+  const unsorted = txns.filter((t) => !t.category);
+  if (unsorted.length) {
+    const { data: biz } = await supabase.from('businesses').select('name');
+    const internal = (biz ?? []).map((b) => b.name).filter((n) => n.length > 5);
+    const groups = new Map<string, number[]>();
+    for (const t of unsorted) { t.category = categorize(t.source, t.vendor, t.item, (rules ?? []) as Rule[], internal); groups.set(t.category, [...(groups.get(t.category) ?? []), t.id]); }
+    for (const [category, ids] of groups) for (let i = 0; i < ids.length; i += 300) await supabase.from('audit_txns').update({ category }).in('id', ids.slice(i, i + 300));
   }
   const dismissed = new Set((dismissedRows ?? []).map((d) => d.key));
   const allFlags = findFlags(txns, stores);
@@ -223,7 +232,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
               <section className="card scroll"><h2 style={{ marginBottom: 8 }}>Card spend by category</h2><CategoryTable list={ch} /></section>
               <section className="card scroll"><h2 style={{ marginBottom: 8 }}>Recurring charges (subscriptions)</h2><FlagList list={openFlags.filter((f) => f.kind === 'subscription')} empty="No recurring charges found yet." /></section>
               <section className="card scroll"><h2 style={{ marginBottom: 8 }}>Personal-looking or unclear</h2><FlagList list={openFlags.filter((f) => f.kind === 'personal' && f.source === 'chase')} empty="Nothing flagged." /></section>
-              <section className="card scroll"><h2 style={{ marginBottom: 8 }}>Possible duplicates &amp; unusual months</h2><FlagList list={openFlags.filter((f) => (f.kind === 'duplicate' || f.kind === 'spike') && f.source === 'chase')} empty="Nothing flagged." /></section>
+              <section className="card scroll"><h2 style={{ marginBottom: 8 }}>Large one-time charges, duplicates &amp; unusual months</h2><FlagList list={openFlags.filter((f) => (f.kind === 'duplicate' || f.kind === 'spike' || f.kind === 'big') && f.source === 'chase')} empty="Nothing flagged." /></section>
             </>
           );
         })()}
@@ -236,6 +245,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             && vendors.some((v) => v && (v.toLowerCase().includes(c.vendor.toLowerCase()) || c.vendor.toLowerCase().includes(v.toLowerCase().split(' ')[0]))));
           return (
             <>
+              <div className="notice good">The bookkeeper’s daily QuickBooks register upload (Owners Report) feeds this automatically. Upload here only to add older months the daily file doesn’t cover.</div>
               <UploadBox source="register" stores={stores} />
               {coverage('register')}
               <section className="card scroll">

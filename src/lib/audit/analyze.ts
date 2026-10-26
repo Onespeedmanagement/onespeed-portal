@@ -11,7 +11,7 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00
 export const yearly = (amount: number, from: string, to: string) => amount * (365 / Math.max(30, daysBetween(from, to) + 1));
 const month = (d: string) => d.slice(0, 7);
 // "NETFLIX.COM 866-579-7172 CA" and "NETFLIX.COM 800-..." → "netflix com"
-export const vendorKey = (v: string | null) => (v ?? '').toLowerCase().replace(/[#*]+\S*/g, ' ').replace(/\d[\d\-./]*/g, ' ').replace(/\b(ca|ny|nj|de|pa|md|wa|tx|fl|il|ma|usa|us|inc|llc|com)\b/g, ' ').replace(/[^a-z&]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+export const vendorKey = (v: string | null) => (v ?? '').toLowerCase().replace(/^(tst|sq|wci|sp|in|spo|fsp|py|pp|paypal|dd|ach)\s?\*\s?|^sp\s+/, '').replace(/[#*]+\S*/g, ' ').replace(/\d[\d\-./]*/g, ' ').replace(/\b(ca|ny|nj|de|pa|md|wa|tx|fl|il|ma|usa|us|inc|llc|com)\b/g, ' ').replace(/[^a-z&]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
 
 export function range(txns: AT[]) {
   const d = txns.map((t) => t.txn_date).sort();
@@ -66,7 +66,7 @@ export function topItems(txns: AT[], stores: Store[]) {
   }).sort((a, b) => b.spend - a.spend);
 }
 
-export type Flag = { key: string; kind: 'duplicate' | 'subscription' | 'personal' | 'too_often' | 'price_up' | 'store_price' | 'spike'; source: AT['source']; business_id: string | null; title: string; detail: string; amount: number; yearly?: number };
+export type Flag = { key: string; kind: 'duplicate' | 'subscription' | 'personal' | 'too_often' | 'price_up' | 'store_price' | 'spike' | 'big'; source: AT['source']; business_id: string | null; title: string; detail: string; amount: number; yearly?: number };
 
 export function flags(txns: AT[], stores: Store[]): Flag[] {
   const name = (id: string | null) => stores.find((s) => s.id === id)?.name ?? 'Company card';
@@ -94,7 +94,7 @@ export function flags(txns: AT[], stores: Store[]): Flag[] {
     const median = amounts[Math.floor(amounts.length / 2)];
     const steady = ts.filter((t) => Math.abs(t.amount - median) <= Math.max(2, median * 0.15)).length >= ts.length * 0.6;
     if (!steady) continue;
-    const perMonth = ts.reduce((a, t) => a + t.amount, 0) / months.size;
+    const perMonth = median;   // typical charge (an annual renewal in the middle doesn't inflate it)
     const last = [...ts].sort((a, b) => a.txn_date.localeCompare(b.txn_date));
     const up = last.length > 1 && last[last.length - 1].amount > last[0].amount * 1.05;
     out.push({ key: `sub:${k}`, kind: 'subscription', source: 'chase', business_id: ts[0].business_id, title: ts[0].vendor ?? '',
@@ -104,7 +104,7 @@ export function flags(txns: AT[], stores: Store[]): Flag[] {
 
   // Personal-looking or unclear card charges, grouped by merchant
   const pers = new Map<string, AT[]>();
-  for (const t of spendable) if (t.source !== 'amazon' && (t.category === 'Personal or unclear' || t.category === 'Meals' || (t.category === 'Other' && t.source === 'chase' && t.amount >= 100))) {
+  for (const t of spendable) if (t.source !== 'amazon' && (t.category === 'Personal or unclear' || t.category === 'Meals' || t.category === 'Vehicle' || (t.category === 'Other' && t.source === 'chase' && t.amount >= 100))) {
     const k = `${t.business_id}|${vendorKey(t.vendor)}`; pers.set(k, [...(pers.get(k) ?? []), t]);
   }
   for (const [k, ts] of pers) {
@@ -126,6 +126,13 @@ export function flags(txns: AT[], stores: Store[]): Flag[] {
       if (hi.avgPrice! > lo.avgPrice! * 1.15) out.push({ key: `sp:${it.key}`, kind: 'store_price', source: 'amazon', business_id: hi.id, title: it.title,
         detail: `${hi.name} pays ${usd(hi.avgPrice!)} each, ${lo.name} pays ${usd(lo.avgPrice!)}`, amount: (hi.avgPrice! - lo.avgPrice!) * hi.qty });
     }
+  }
+
+  // Big one-time card charges: worth confirming they were for the store
+  for (const t of spendable) if (t.source === 'chase' && t.amount >= 1000 && !['Personal or unclear', 'Meals', 'Vehicle'].includes(t.category)) {
+    const again = spendable.filter((x) => x.source === 'chase' && vendorKey(x.vendor) === vendorKey(t.vendor)).length;
+    out.push({ key: `big:${t.id}`, kind: 'big', source: 'chase', business_id: t.business_id, title: t.vendor ?? '',
+      detail: `${usd(t.amount)} on ${t.txn_date} · ${t.category}${again > 1 ? ` · ${again} charges from this vendor` : ''} · ${name(t.business_id)}`, amount: t.amount });
   }
 
   // Month where a category ran 60%+ above its usual month
@@ -192,9 +199,27 @@ export function opportunities(txns: AT[], stores: Store[], fl: Flag[], alt: { it
       detail: `${cheapest.name} pays ${usd(cheapest.perMonth!)} a month (${cheapest.vendors.join(', ')}). ${over.map((p) => `${p.name} ${usd(p.perMonth!)} (${p.vendors.join(', ')})`).join('; ')}. Use the cheaper quote to renegotiate, or move to the same vendor.` });
   }
 
+  // Two vendors for the same service at one store in the same months (e.g. two trash companies)
+  for (const category of ['Trash & recycling', 'Alarm & security', 'Pest control', 'Phone & internet']) for (const s of stores) {
+    const mine = txns.filter((t) => t.business_id === s.id && t.category === category && t.amount > 0);
+    const byV = new Map<string, AT[]>();
+    for (const t of mine) { const k = vendorKey(t.vendor).split(' ')[0]; byV.set(k, [...(byV.get(k) ?? []), t]); }
+    if (byV.size < 2) continue;
+    const cutoff = new Date(Date.parse(`${range(mine).to}T00:00:00Z`) - 120 * 86400000).toISOString().slice(0, 10);
+    const recent = [...byV.values()].filter((ts) => ts.some((t) => t.txn_date >= cutoff));   // both still being paid in the last 4 months
+    if (recent.length < 2) continue;
+    const r = range(mine);
+    const per = recent.map((ts) => ({ v: ts[0].vendor ?? '—', perYear: yearly(ts.reduce((a, t) => a + t.amount, 0), r.from!, r.to!) })).sort((a, b) => a.perYear - b.perYear);
+    out.push({ title: `${s.name} pays ${per.length} ${category.toLowerCase()} vendors`, tab: 'expenses', perYear: category === 'Phone & internet' ? null : per[0].perYear,
+      action: category === 'Phone & internet' ? 'Check for overlap' : 'Check if both are needed',
+      detail: `${per.map((p) => `${p.v} ≈ ${usd(p.perYear)}/yr`).join(' and ')}, ${per.length > 2 ? 'all' : 'both'} paid in the last 4 months. ${category === 'Phone & internet' ? 'Check whether the store needs both (e.g. two internet lines, or phones that could move to the same provider).' : 'If one covers the other, keep one; the figure is the cheaper one dropped.'}` });
+  }
+
   const subs = fl.filter((f) => f.kind === 'subscription');
-  if (subs.length) out.push({ title: `${subs.length} recurring card charges to review`, tab: 'chase', perYear: subs.reduce((a, f) => a + (f.yearly ?? 0), 0), action: 'Cancel what isn’t used',
-    detail: `Biggest: ${subs.sort((a, b) => (b.yearly ?? 0) - (a.yearly ?? 0)).slice(0, 4).map((f) => `${f.title} ${usd(f.amount)}/mo`).join(', ')}. The figure is the total if all were cancelled.` });
+  const SUB_CATS = /software|real estate|personal|other|advertising|hiring/i;
+  const cancellable = subs.filter((f) => SUB_CATS.test(f.detail));
+  if (subs.length) out.push({ title: `${subs.length} recurring card charges to review`, tab: 'chase', perYear: cancellable.reduce((a, f) => a + (f.yearly ?? 0), 0) || null, action: 'Cancel what isn’t used',
+    detail: `Biggest: ${subs.sort((a, b) => (b.yearly ?? 0) - (a.yearly ?? 0)).slice(0, 4).map((f) => `${f.title} ${usd(f.amount)}/mo`).join(', ')}. The figure is subscriptions, listings and services you could cancel (not supplies or utilities), if all were.` });
 
   const alts = alt.map((a) => {
     const it = topItems(txns, stores).find((i) => i.key === a.item_key);

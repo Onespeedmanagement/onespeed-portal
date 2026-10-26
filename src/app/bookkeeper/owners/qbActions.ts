@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { addDays } from '@/lib/dates';
 import { parseRegister, summarize, type OutItem, type RegisterSummary } from '@/lib/qb/parseRegister';
 import { trackFrom } from '@/lib/qb/outstanding';
+import { registerTxns } from '@/lib/audit/parse';
 
 type Supa = Awaited<ReturnType<typeof supabaseServer>>;
 type Row = { id: string; fingerprint: string; payee: string | null; txn_date: string; amount: number; cleared_on: string | null; last_seen: string };
@@ -52,8 +53,11 @@ export async function previewQb(_p: QbPreview | null, form: FormData): Promise<Q
 
   let summary: RegisterSummary;
   let cardDeposits: { date: string; amount: number }[] = [];
+  let audit: [string, string | null, string | null, string | null, number, string][] = [];
   try {
     const reg = parseRegister(new Uint8Array(await file.arrayBuffer()));
+    // Every payment in the register also feeds the expense audit (admins only see that)
+    audit = registerTxns(reg).txns.map((t) => [t.txn_date, t.ref, t.vendor, t.item, t.amount, t.fingerprint]);
     summary = summarize(reg, await trackFrom(supabase));
     cardDeposits = reg.rows.filter((r) => r.deposit > 0 && /credit card/i.test(r.account ?? '') && r.date <= date && r.date >= addDays(date, -6))
       .map((r) => ({ date: r.date, amount: r.deposit }));
@@ -81,14 +85,14 @@ export async function previewQb(_p: QbPreview | null, form: FormData): Promise<Q
     storeName: store.name, date, summary, storeCheck,
     added: d.added, kept: d.kept.length,
     cleared: d.cleared.map((r) => ({ payee: r.payee, txn_date: r.txn_date, amount: r.amount })),
-    payload: JSON.stringify({ businessId: store.id, date, summary }),
+    payload: JSON.stringify({ businessId: store.id, date, summary, audit }),
   };
 }
 
 // Step 2: save what the preview showed.
 export async function saveQb(_p: QbSaved, form: FormData): Promise<QbSaved> {
   const me = await requireRole('bookkeeper');
-  let p: { businessId: string; date: string; summary: RegisterSummary };
+  let p: { businessId: string; date: string; summary: RegisterSummary; audit?: unknown[] };
   try { p = JSON.parse(String(form.get('payload') || '')); } catch { return { error: 'Preview again, then save.' }; }
   const items = Array.isArray(p?.summary?.outstanding) ? p.summary.outstanding : null;
   if (!p?.businessId || !/^\d{4}-\d{2}-\d{2}$/.test(p.date ?? '') || !items
@@ -122,8 +126,13 @@ export async function saveQb(_p: QbSaved, form: FormData): Promise<QbSaved> {
     deposits_in_transit: s.depositsInTransit?.total ?? null, source: 'QuickBooks register',
     entered_by: me.email, entered_at: new Date().toISOString(),
   });
+  // Feed the expense audit (best effort: never blocks the balance)
+  if (Array.isArray(p.audit) && p.audit.length) {
+    try { await supabase.rpc('audit_ingest_register', { b: p.businessId, rows: p.audit.slice(0, 20000) }); } catch { /* audit is optional */ }
+  }
   revalidatePath('/bookkeeper/owners');
   revalidatePath('/owners');
+  revalidatePath('/audit');
   if (repErr) return { error: 'Checks saved, but the balance didn’t save. Enter it by hand below.' };
   return { ok: `Saved: ${d.added.length} added, ${d.cleared.length} cleared, QuickBooks balance $${s.balance.toFixed(2)}.` };
 }

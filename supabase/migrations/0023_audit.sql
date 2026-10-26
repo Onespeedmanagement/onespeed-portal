@@ -65,3 +65,28 @@ do $$ declare t text; begin
     execute format('create policy admin_all on %I for all using (is_admin()) with check (is_admin())', t);
   end loop;
 end $$;
+
+-- The bookkeeper's daily QuickBooks register upload also feeds the audit.
+-- The bookkeeper can't see the audit, so this runs with the owner's rights and only adds rows.
+create or replace function audit_ingest_register(b uuid, rows jsonb) returns int
+language plpgsql security definer set search_path = public as $$
+declare f uuid; n int;
+begin
+  if not (is_admin() or is_bookkeeper()) then raise exception 'not allowed'; end if;
+  if jsonb_typeof(rows) <> 'array' then return 0; end if;
+  select id into f from audit_files where source = 'register' and business_id = b and filename = 'QuickBooks daily upload' limit 1;
+  if f is null then
+    insert into audit_files (source, business_id, filename, label) values ('register', b, 'QuickBooks daily upload', 'bank register') returning id into f;
+  end if;
+  insert into audit_txns (file_id, source, business_id, txn_date, ref, vendor, item, amount, fingerprint)
+  select f, 'register', b, (r->>0)::date, nullif(r->>1, ''), nullif(r->>2, ''), nullif(r->>3, ''), (r->>4)::numeric, r->>5
+  from jsonb_array_elements(rows) r
+  where jsonb_typeof(r) = 'array' and (r->>0) ~ '^\d{4}-\d{2}-\d{2}$' and (r->>4) ~ '^-?\d+(\.\d+)?$' and coalesce(r->>5, '') <> ''
+    and not exists (select 1 from audit_txns x where x.source = 'register' and x.business_id = b and x.fingerprint = r->>5);
+  get diagnostics n = row_count;
+  update audit_files a set rows = (select count(*) from audit_txns t where t.file_id = f),
+    date_from = (select min(txn_date) from audit_txns t where t.file_id = f), date_to = (select max(txn_date) from audit_txns t where t.file_id = f),
+    uploaded_at = now()
+  where a.id = f;
+  return n;
+end $$;
