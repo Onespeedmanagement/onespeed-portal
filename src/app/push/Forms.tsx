@@ -24,3 +24,12 @@ export function UnsoldUpload({ businessId, storeName }: { businessId: string; st
 export function PrintButton() {
   return <button type="button" className="btn secondary no-print" onClick={() => window.print()}>Print for staff</button>;
 }
+
+// Copy the focus list as plain text (for a group text / WhatsApp)
+export function CopyList({ text }: { text: string }) {
+  return (
+    <button type="button" className="btn secondary no-print" onClick={async () => {
+      try { await navigator.clipboard.writeText(text); alert('Copied. Paste it into your staff group text.'); } catch { prompt('Copy this:', text); }
+    }}>Copy as text</button>
+  );
+}

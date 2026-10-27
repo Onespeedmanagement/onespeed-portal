@@ -2,11 +2,12 @@ import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { ManagerNav } from '@/components/ManagerNav';
-import { PrintButton, UnsoldUpload } from './Forms';
+import { CopyList, PrintButton, UnsoldUpload } from './Forms';
+import { clearFocus, toggleFocus } from './actions';
 
 export const dynamic = 'force-dynamic';
 
-type Item = { sku: string; description: string; kind: string; stock: number; cost: number | null; price: number | null };
+type Item = { sku: string; description: string; kind: string; stock: number; cost: number | null; price: number | null; focus: boolean };
 const usd = (n: number | null | undefined, cents = true) => (n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: cents ? 2 : 0 }));
 const nice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—');
 const KIND_ORDER = ['Liquor', 'Wine', 'Sparkling', 'Beer, seltzer & RTD', 'THC drinks', 'Mixers & other'];
@@ -22,7 +23,7 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
     (async () => {
       const out: Item[] = [];
       for (let page = 0; ; page++) {
-        const { data } = await supabase.from('unsold_items').select('sku, description, kind, stock, cost, price').eq('business_id', store.id).range(page * 1000, page * 1000 + 999);
+        const { data } = await supabase.from('unsold_items').select('sku, description, kind, stock, cost, price, focus').eq('business_id', store.id).range(page * 1000, page * 1000 + 999);
         out.push(...(data ?? []).map((i) => ({ ...i, stock: Number(i.stock ?? 0), cost: i.cost == null ? null : Number(i.cost), price: i.price == null ? null : Number(i.price) })));
         if (!data || data.length < 1000) break;
       }
@@ -40,14 +41,22 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
   const isAdmin = me.role === 'admin';
   const link = (extra: Record<string, string>) => `/push?${new URLSearchParams({ ...(store ? { store: store.id } : {}), ...extra })}`;
 
+  const focus = items.filter((i) => i.focus).sort((a, b) => a.kind.localeCompare(b.kind) || value(b) - value(a));
+  const FocusBtn = ({ i }: { i: Item }) => (
+    <form action={toggleFocus} className="no-print" style={{ display: 'inline' }}>
+      <input type="hidden" name="business_id" value={store!.id} /><input type="hidden" name="sku" value={i.sku} /><input type="hidden" name="on" value={i.focus ? '0' : '1'} />
+      <button type="submit" className={`btn ${i.focus ? '' : 'secondary'}`} style={{ minHeight: 30, padding: '2px 10px', fontSize: 13 }} aria-label={i.focus ? `Remove ${i.description} from focus list` : `Add ${i.description} to focus list`}>{i.focus ? '✓ Focus' : '+ Focus'}</button>
+    </form>
+  );
   const Table = ({ rows }: { rows: Item[] }) => (
     <table className="num" style={{ width: '100%' }}>
-      <thead><tr><th>Item</th><th className="r">On shelf</th><th className="r">Price</th><th className="r">Tied up (cost)</th></tr></thead>
+      <thead><tr><th>Item</th><th className="r">On shelf</th><th className="r">Price</th><th className="r">Tied up (cost)</th><th className="no-print" /></tr></thead>
       <tbody>{rows.map((i) => (
-        <tr key={i.sku}><td>{i.description}<span className="small muted"> · SKU {i.sku}</span></td><td className="r">{i.stock}</td><td className="r">{usd(i.price)}</td><td className="r">{usd(value(i), false)}</td></tr>
+        <tr key={i.sku} style={i.focus ? { background: '#f4f0e4' } : undefined}><td>{i.description}<span className="small muted"> · SKU {i.sku}</span></td><td className="r">{i.stock}</td><td className="r">{usd(i.price)}</td><td className="r">{usd(value(i), false)}</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
       ))}</tbody>
     </table>
   );
+  const focusText = `${store?.name ?? ''}: items to push this week\n` + focus.map((i, n) => `${n + 1}. ${i.description}, ${usd(i.price)}`).join('\n');
 
   return (
     <>
@@ -69,6 +78,27 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
             {items.length > 0 && <PrintButton />}
           </div>
         </div>
+
+        {items.length > 0 && (
+          <section className="card" style={{ borderLeft: '4px solid var(--green)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="row between">
+              <h2>Focus list for staff {focus.length > 0 && <span className="small muted">· {focus.length} item{focus.length === 1 ? '' : 's'}</span>}</h2>
+              {focus.length > 0 && (
+                <div className="row no-print">
+                  <a className="btn" href={`/push/focus?store=${store!.id}`} target="_blank" rel="noopener" style={{ textDecoration: 'none' }}>Print focus list</a>
+                  <CopyList text={focusText} />
+                  <a className="btn secondary" href={`mailto:?subject=${encodeURIComponent(`Items to push · ${store!.name}`)}&body=${encodeURIComponent(focusText)}`} style={{ textDecoration: 'none' }}>Email</a>
+                  <form action={clearFocus}><input type="hidden" name="business_id" value={store!.id} /><button className="link small" type="submit">Clear list</button></form>
+                </div>
+              )}
+            </div>
+            {focus.length === 0 ? <span className="small muted">Pick a handful of items for staff to push: press <strong>+ Focus</strong> next to any item below. Keep it short (10–15 works well). The list stays when you upload a new report, and items that sell drop off.</span> : (
+              <table className="num" style={{ width: '100%' }}><tbody>{focus.map((i) => (
+                <tr key={i.sku}><td><strong>{i.description}</strong><span className="small muted"> · {i.kind}</span></td><td className="r">{usd(i.price)}</td><td className="r small muted">{i.stock} on shelf</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
+              ))}</tbody></table>
+            )}
+          </section>
+        )}
 
         {items.length > 0 && (
           <>
