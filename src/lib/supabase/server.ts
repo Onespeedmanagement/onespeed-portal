@@ -9,7 +9,8 @@ const readOnlyFetch: typeof fetch = (input, init) => {
   const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   const isData = url.includes('/rest/v1/') || url.includes('/storage/v1/');
-  const isRead = method === 'GET' || method === 'HEAD' || url.includes('/rest/v1/rpc/');
+  // read-only database functions the pages call; anything else that isn't a plain read is refused
+  const isRead = method === 'GET' || method === 'HEAD' || /\/rest\/v1\/rpc\/(manager_report_days|manager_open_dates|store_hourly|reminder_people)\b/.test(url);
   if (isData && !isRead) {
     return Promise.resolve(new Response(JSON.stringify({ message: 'You’re viewing as another user. Nothing can be changed in this view. Exit “View as” first.' }),
       { status: 403, headers: { 'content-type': 'application/json' } }));
