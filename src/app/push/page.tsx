@@ -12,7 +12,7 @@ const usd = (n: number | null | undefined, cents = true) => (n == null ? '—' :
 const nice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—');
 const KIND_ORDER = ['Liquor', 'Wine', 'Sparkling', 'Beer, seltzer & RTD', 'THC drinks', 'Mixers & other'];
 
-export default async function PushPage({ searchParams }: { searchParams: Promise<{ store?: string; kind?: string; sort?: string }> }) {
+export default async function PushPage({ searchParams }: { searchParams: Promise<{ store?: string; kind?: string; sort?: string; hidenew?: string }> }) {
   const me = await requireRole('admin', 'manager');
   const sp = await searchParams;
   const supabase = await supabaseServer();
@@ -33,7 +33,11 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
   const value = (i: Item) => i.stock * (i.cost ?? 0);
   const kinds = KIND_ORDER.filter((k) => items.some((i) => i.kind === k));
   const kind = kinds.includes(sp.kind ?? '') ? sp.kind! : null;
-  const sort = sp.sort === 'units' ? 'units' : 'value';
+  const sort = sp.sort === 'units' ? 'units' : sp.sort === 'newest' ? 'newest' : 'value';
+  // SKUs are numbered in the order items were added: the highest ones are most likely new arrivals, not dead stock
+  const NEW_COUNT = 40;
+  const newSkus = new Set([...items].filter((i) => /^\d+$/.test(i.sku)).sort((a, b) => Number(b.sku) - Number(a.sku)).slice(0, NEW_COUNT).map((i) => i.sku));
+  const hideNew = sp.hidenew === '1';
   const total = items.reduce((a, i) => a + value(i), 0);
   const isAdmin = me.role === 'admin';
   const link = (extra: Record<string, string>) => `/push?${new URLSearchParams({ ...(store ? { store: store.id } : {}), ...extra })}`;
@@ -49,7 +53,7 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
     <table className="num" style={{ width: '100%' }}>
       <thead><tr><th>Item</th><th className="r">On shelf</th><th className="r">Price</th><th className="r">Tied up (cost)</th><th className="no-print" /></tr></thead>
       <tbody>{rows.map((i) => (
-        <tr key={i.sku} style={i.focus ? { background: '#f4f0e4' } : undefined}><td>{i.description}<span className="small muted"> · SKU {i.sku}</span></td><td className="r">{i.stock}</td><td className="r">{usd(i.price)}</td><td className="r">{usd(value(i), false)}</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
+        <tr key={i.sku} style={i.focus ? { background: '#f4f0e4' } : undefined}><td>{i.description}{newSkus.has(i.sku) && <span className="pill warn" style={{ marginLeft: 6 }} title="One of the most recently added SKUs: probably new, not dead stock">Likely new</span>}<span className="small muted"> · SKU {i.sku}</span></td><td className="r">{i.stock}</td><td className="r">{usd(i.price)}</td><td className="r">{usd(value(i), false)}</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
       ))}</tbody>
     </table>
   );
@@ -89,6 +93,7 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
                       border: `2px solid ${on ? 'var(--green)' : 'var(--line)'}`, background: on ? '#eef4ee' : '#fff' }}>
                       <strong style={{ fontSize: 16 }}>{k}</strong>
                       <div className="small muted num">{rows.length} items · {usd(rows.reduce((a, i) => a + value(i), 0), false)}</div>
+                      {rows.some((i) => newSkus.has(i.sku)) && <div className="small muted">{rows.filter((i) => newSkus.has(i.sku)).length} likely new</div>}
                       {rows.some((i) => i.focus) && <div className="small" style={{ color: 'var(--green)' }}>✓ {rows.filter((i) => i.focus).length} in focus list</div>}
                     </a>
                   );
@@ -99,7 +104,8 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
 
             {/* 2. The chosen department */}
             {kind && (() => {
-              const rows = items.filter((i) => i.kind === kind).sort((a, b) => (sort === 'units' ? b.stock - a.stock : value(b) - value(a)));
+              const rows = items.filter((i) => i.kind === kind && !(hideNew && newSkus.has(i.sku)))
+                .sort((a, b) => (sort === 'units' ? b.stock - a.stock : sort === 'newest' ? Number(b.sku) - Number(a.sku) : value(b) - value(a)));
               return (
                 <section className="card">
                   <div className="row between">
@@ -108,9 +114,11 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
                       <span className="small muted">Sort by</span>
                       <a href={link({ kind })} className={`btn ${sort !== 'units' ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 30, padding: '2px 10px' }}>Most money tied up</a>
                       <a href={link({ kind, sort: 'units' })} className={`btn ${sort === 'units' ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 30, padding: '2px 10px' }}>Most on the shelf</a>
+                      <a href={link({ kind, sort: 'newest' })} className={`btn ${sort === 'newest' ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 30, padding: '2px 10px' }}>Newest first (highest SKU)</a>
+                      <a href={link({ kind, ...(sort !== 'value' ? { sort } : {}), ...(hideNew ? {} : { hidenew: '1' }) })} className="small" style={{ marginLeft: 6 }}>{hideNew ? 'Show likely new items' : 'Hide likely new items'}</a>
                     </div>
                   </div>
-                  <span className="small muted">Press <strong>+ Focus</strong> on the items staff should push (10–15 in total works well).</span>
+                  <span className="small muted">Press <strong>+ Focus</strong> on the items staff should push (10–15 in total works well). <span className="pill warn">Likely new</span> marks the {NEW_COUNT} most recently added SKUs: probably new arrivals that haven’t had time to sell, not dead stock.</span>
                   <div style={{ marginTop: 8 }}><Table rows={rows} /></div>
                 </section>
               );
