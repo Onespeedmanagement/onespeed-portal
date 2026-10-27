@@ -96,6 +96,7 @@ export async function ingestPosPdf(
     cash_sales: parsed.netCashFlow,         // Net Cash-Flow: what the drawer must match
     non_revenue: parsed.nonRevenue,
     transactions: parsed.transactions,
+    hourly: parsed.hourly.length ? parsed.hourly.map((h) => ({ hour: h.hour, count: h.count, amount: h.amount })) : null,
     file_id: file.id,
     override_note: overrideNote,
     override_by: overrideNote ? opts.override : null,

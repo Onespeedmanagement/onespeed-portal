@@ -7,7 +7,7 @@ export type Cell = { x: number; y: number; text: string };
 export type Row = { page: number; y: number; cells: Cell[] };
 
 export type Tender = { type: string; count: number; amount: number };
-export type HourlySale = { period: string; count: number; amount: number };
+export type HourlySale = { period: string; hour: number; count: number; amount: number };   // hour = start hour, 0–23
 export type DepartmentSale = {
   department: string; qty: number; sales: number; cost: number;
   profit: number; profitPct: number; salesPct: number | null;
@@ -142,8 +142,12 @@ export async function parseCashSalesSummary(pdfBytes: Uint8Array): Promise<CashS
 
   const hourly: HourlySale[] = page1
     .map(r => side(r, 'right'))
-    .filter(c => c.length === 3 && /\d{2}:\d{2} [AP]M To/.test(c[0].text))
-    .map(c => ({ period: c[0].text, count: toNumber(c[1].text), amount: toNumber(c[2].text) }));
+    .filter(c => c.length === 3 && /^\d{1,2}:\d{2}\s*[AP]M\s*(To|-)/i.test(c[0].text))   // "09:00 AM To 10:00 AM" or "9:00 AM - 10:00 AM"
+    .map(c => {
+      const m = c[0].text.match(/^(\d{1,2}):\d{2}\s*([AP])M/i)!;
+      const h12 = Number(m[1]) % 12;
+      return { period: c[0].text, hour: m[2].toUpperCase() === 'P' ? h12 + 12 : h12, count: toNumber(c[1].text), amount: toNumber(c[2].text) };
+    });
 
   // Departments: name, qty, price, cost, profit, % profit, % sales. Usually page 2, but a long
   // report (busy day, many hourly rows) pushes the table, or its Total line, onto page 3.
