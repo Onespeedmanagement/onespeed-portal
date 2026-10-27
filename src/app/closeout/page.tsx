@@ -6,6 +6,7 @@ import { CloseoutForm } from './CloseoutForm';
 import { EmployeeManager } from './EmployeeManager';
 import { UploadToday } from './UploadToday';
 import { MissingReports } from './MissingReports';
+import { ManagerNav } from '@/components/ManagerNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +55,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
   const yesterday = openDates[openDates.length - 1];
   const day = wanted && openDates.includes(wanted) ? wanted : (pending[0] ?? yesterday);
   if (!day) {
-    return (<><TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><main className="page" style={{ maxWidth: 880 }}>{savedNote && <div className="notice good">{savedNote}</div>}<div className="notice good">You&apos;re all caught up.</div><StorePicker stores={stores ?? []} current={store.id} />{daysList.length > 0 && <MissingReports key={`m${store.id}`} days={daysList} businessId={store.id} />}</main></>);
+    return (<><TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><ManagerNav active="/closeout" /><main className="page" style={{ maxWidth: 880 }}>{savedNote && <div className="notice good">{savedNote}</div>}<div className="notice good">You&apos;re all caught up.</div><StorePicker stores={stores ?? []} current={store.id} />{daysList.length > 0 && <MissingReports key={`m${store.id}`} days={daysList} businessId={store.id} />}</main></>);
   }
 
   const [{ data: pos }, { data: done }, { data: employees }, { data: tol }] = await Promise.all([
@@ -69,7 +70,7 @@ export default async function CloseoutPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <TopBar subtitle={store.name} who={`${me.email} · Store manager`} />
+      <TopBar subtitle={store.name} who={`${me.email} · Store manager`} /><ManagerNav active="/closeout" />
       <main className="page" style={{ maxWidth: 880 }}>
         <StorePicker stores={stores ?? []} current={store.id} />
         {savedNote && <div className="notice good">{savedNote}</div>}

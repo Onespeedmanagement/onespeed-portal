@@ -4,6 +4,7 @@ const LINKS = [
   ['/owners', 'Owners Report'],
   ['/forecasting', 'Forecasting'],
   ['/audit', 'Audit'],
+  ['/push', 'Store tools'],
   ['/cash', 'Cash & deposits'],
   ['/discrepancies', 'Discrepancies'],
   ['/admin/upload', 'Upload POS reports'],

@@ -78,3 +78,10 @@ td.r, th.r { text-align: right; }
 
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .between { justify-content: space-between; }
+
+/* Printing a list for staff: just the content */
+@media print {
+  .no-print, nav, .topbar { display: none !important; }
+  body { background: #fff; }
+  .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+}
