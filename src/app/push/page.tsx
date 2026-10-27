@@ -2,7 +2,7 @@ import { requireRole } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { ManagerNav } from '@/components/ManagerNav';
-import { CopyList, PrintButton, UnsoldUpload } from './Forms';
+import { CopyList, UnsoldUpload } from './Forms';
 import { clearFocus, toggleFocus } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,7 @@ const usd = (n: number | null | undefined, cents = true) => (n == null ? '—' :
 const nice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '—');
 const KIND_ORDER = ['Liquor', 'Wine', 'Sparkling', 'Beer, seltzer & RTD', 'THC drinks', 'Mixers & other'];
 
-export default async function PushPage({ searchParams }: { searchParams: Promise<{ store?: string; kind?: string }> }) {
+export default async function PushPage({ searchParams }: { searchParams: Promise<{ store?: string; kind?: string; sort?: string }> }) {
   const me = await requireRole('admin', 'manager');
   const sp = await searchParams;
   const supabase = await supabaseServer();
@@ -33,11 +33,8 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
   const value = (i: Item) => i.stock * (i.cost ?? 0);
   const kinds = KIND_ORDER.filter((k) => items.some((i) => i.kind === k));
   const kind = kinds.includes(sp.kind ?? '') ? sp.kind! : null;
-  const shown = kind ? items.filter((i) => i.kind === kind) : items;
-  const pushFirst = [...items].sort((a, b) => value(b) - value(a)).slice(0, 20);
-  const mostUnits = [...items].filter((i) => i.stock >= 6).sort((a, b) => b.stock - a.stock).slice(0, 15);
+  const sort = sp.sort === 'units' ? 'units' : 'value';
   const total = items.reduce((a, i) => a + value(i), 0);
-  const retail = items.reduce((a, i) => a + i.stock * (i.price ?? 0), 0);
   const isAdmin = me.role === 'admin';
   const link = (extra: Record<string, string>) => `/push?${new URLSearchParams({ ...(store ? { store: store.id } : {}), ...extra })}`;
 
@@ -75,76 +72,74 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
                 <button className="btn secondary" type="submit">Show</button>
               </form>
             )}
-            {items.length > 0 && <PrintButton />}
           </div>
         </div>
 
         {items.length > 0 && (
-          <section className="card" style={{ borderLeft: '4px solid var(--green)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div className="row between">
-              <h2>Focus list for staff {focus.length > 0 && <span className="small muted">· {focus.length} item{focus.length === 1 ? '' : 's'}</span>}</h2>
-              {focus.length > 0 && (
-                <div className="row no-print">
-                  <a className="btn" href={`/push/focus?store=${store!.id}`} target="_blank" rel="noopener" style={{ textDecoration: 'none' }}>Print focus list</a>
-                  <CopyList text={focusText} />
-                  <a className="btn secondary" href={`mailto:?subject=${encodeURIComponent(`Items to push · ${store!.name}`)}&body=${encodeURIComponent(focusText)}`} style={{ textDecoration: 'none' }}>Email</a>
-                  <form action={clearFocus}><input type="hidden" name="business_id" value={store!.id} /><button className="link small" type="submit">Clear list</button></form>
-                </div>
-              )}
-            </div>
-            {focus.length === 0 ? <span className="small muted">Pick a handful of items for staff to push: press <strong>+ Focus</strong> next to any item below. Keep it short (10–15 works well). The list stays when you upload a new report, and items that sell drop off.</span> : (
-              <table className="num" style={{ width: '100%' }}><tbody>{focus.map((i) => (
-                <tr key={i.sku}><td><strong>{i.description}</strong><span className="small muted"> · {i.kind}</span></td><td className="r">{usd(i.price)}</td><td className="r small muted">{i.stock} on shelf</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
-              ))}</tbody></table>
-            )}
-          </section>
-        )}
-
-        {items.length > 0 && (
           <>
-            <section className="grid num" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-              {[['Items not selling', String(items.length)], ['Bottles / packs on the shelf', Math.round(items.reduce((a, i) => a + i.stock, 0)).toLocaleString('en-US')],
-                ['Money tied up (cost)', usd(total, false)], ['Worth at shelf price', usd(retail, false)]].map(([l, v]) => (
-                <div key={l} className="card"><span className="small muted">{l}</span><div style={{ fontSize: 24, fontWeight: 600, color: 'var(--green)' }}>{v}</div></div>
-              ))}
-            </section>
-
-            <section className="card" style={{ borderLeft: '4px solid var(--gold)' }}>
-              <h2 style={{ marginBottom: 4 }}>Push these first</h2>
-              <span className="small muted">The 20 items with the most money sitting on the shelf. Recommend them to customers, give them a better spot, or ask about a markdown.</span>
-              <div style={{ marginTop: 8 }}><Table rows={pushFirst} /></div>
-            </section>
-
-            {mostUnits.length > 0 && (
-              <section className="card">
-                <h2 style={{ marginBottom: 4 }}>Most bottles / packs on the shelf</h2>
-                <span className="small muted">Lots of units and nothing sold: good candidates for a display or a bundle.</span>
-                <div style={{ marginTop: 8 }}><Table rows={mostUnits} /></div>
-              </section>
-            )}
-
-            <section className="card">
-              <div className="row between">
-                <h2>Everything not selling, by type</h2>
-                <div className="row no-print" style={{ gap: 4 }}>
-                  <a href={link({})} className={`btn ${!kind ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 32, padding: '4px 10px' }}>All</a>
-                  {kinds.map((k) => <a key={k} href={link({ kind: k })} className={`btn ${kind === k ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 32, padding: '4px 10px' }}>{k}</a>)}
-                </div>
+            {/* 1. Pick a department */}
+            <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <h2>{kind ? 'Department' : 'Pick a department'}</h2>
+              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+                {kinds.map((k) => {
+                  const rows = items.filter((i) => i.kind === k);
+                  const on = kind === k;
+                  return (
+                    <a key={k} href={link(on ? {} : { kind: k })} className="no-print" style={{ textDecoration: 'none', color: 'inherit', padding: 12, borderRadius: 10,
+                      border: `2px solid ${on ? 'var(--green)' : 'var(--line)'}`, background: on ? '#eef4ee' : '#fff' }}>
+                      <strong style={{ fontSize: 16 }}>{k}</strong>
+                      <div className="small muted num">{rows.length} items · {usd(rows.reduce((a, i) => a + value(i), 0), false)}</div>
+                      {rows.some((i) => i.focus) && <div className="small" style={{ color: 'var(--green)' }}>✓ {rows.filter((i) => i.focus).length} in focus list</div>}
+                    </a>
+                  );
+                })}
               </div>
-              <span className="small muted">Type is worked out from the item name, so a few may be in the wrong group.</span>
-              {(kind ? [kind] : kinds).map((k) => {
-                const rows = shown.filter((i) => i.kind === k).sort((a, b) => value(b) - value(a));
-                return (
-                  <div key={k} style={{ marginTop: 14 }}>
-                    <h3 style={{ fontSize: 17, margin: '0 0 4px', color: 'var(--green)' }}>{k} <span className="small muted">· {rows.length} items · {usd(rows.reduce((a, i) => a + value(i), 0), false)} at cost</span></h3>
-                    <Table rows={rows} />
+              {!kind && <span className="small muted">{items.length} items with no sales · {usd(total, false)} tied up at cost. Pick a department to see its items and choose a few for staff to push.</span>}
+            </section>
+
+            {/* 2. The chosen department */}
+            {kind && (() => {
+              const rows = items.filter((i) => i.kind === kind).sort((a, b) => (sort === 'units' ? b.stock - a.stock : value(b) - value(a)));
+              return (
+                <section className="card">
+                  <div className="row between">
+                    <h2>{kind} <span className="small muted">· {rows.length} items</span></h2>
+                    <div className="row no-print" style={{ gap: 4 }}>
+                      <span className="small muted">Sort by</span>
+                      <a href={link({ kind })} className={`btn ${sort !== 'units' ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 30, padding: '2px 10px' }}>Most money tied up</a>
+                      <a href={link({ kind, sort: 'units' })} className={`btn ${sort === 'units' ? '' : 'secondary'}`} style={{ textDecoration: 'none', minHeight: 30, padding: '2px 10px' }}>Most on the shelf</a>
+                    </div>
                   </div>
-                );
-              })}
+                  <span className="small muted">Press <strong>+ Focus</strong> on the items staff should push (10–15 in total works well).</span>
+                  <div style={{ marginTop: 8 }}><Table rows={rows} /></div>
+                </section>
+              );
+            })()}
+
+            {/* 3. The focus list (short) */}
+            <section className="card" style={{ borderLeft: '4px solid var(--green)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="row between">
+                <h2>Focus list for staff <span className="small muted">· {focus.length} item{focus.length === 1 ? '' : 's'}</span></h2>
+                {focus.length > 0 && (
+                  <div className="row no-print">
+                    <a className="btn" href={`/push/focus?store=${store!.id}`} target="_blank" rel="noopener" style={{ textDecoration: 'none' }}>Print focus list</a>
+                    <CopyList text={focusText} />
+                    <a className="btn secondary" href={`mailto:?subject=${encodeURIComponent(`Items to push · ${store!.name}`)}&body=${encodeURIComponent(focusText)}`} style={{ textDecoration: 'none' }}>Email</a>
+                    <form action={clearFocus}><input type="hidden" name="business_id" value={store!.id} /><button className="link small" type="submit">Clear list</button></form>
+                  </div>
+                )}
+              </div>
+              {focus.length === 0 ? <span className="small muted">Nothing picked yet. Items you mark with + Focus show up here, ready to print or send. The list stays when a new report is uploaded, and items that sell drop off.</span> : (
+                <details>
+                  <summary className="small" style={{ cursor: 'pointer' }}>Show the {focus.length} items</summary>
+                  <table className="num" style={{ width: '100%', marginTop: 6 }}><tbody>{focus.map((i) => (
+                    <tr key={i.sku}><td><strong>{i.description}</strong><span className="small muted"> · {i.kind}</span></td><td className="r">{usd(i.price)}</td><td className="r small muted">{i.stock} on shelf</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
+                  ))}</tbody></table>
+                </details>
+              )}
             </section>
           </>
         )}
-
         {store && <UnsoldUpload businessId={store.id} storeName={store.name} />}
         <p className="small muted no-print">Later, staff will be able to sign in and see this list for their store.</p>
       </main>
