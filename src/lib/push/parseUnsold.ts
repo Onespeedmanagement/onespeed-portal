@@ -58,7 +58,8 @@ export function parseUnsold(bytes: Uint8Array): UnsoldList {
   }
   for (const it of items) it.kind = kindOf(it.description);
   // Distributor delivery charges, surcharges and deposits show up as "items": leave them out
-  const real = items.filter((it) => !/DELIVER|DEILVER|SURCH|FREIGHT|\bCHARGE|DEPOSIT|FUEL FEE/i.test(it.description));
+  // 24-packs are case SKUs (the cans/bottles ring up as singles or smaller packs), so they never show sales: always left out
+  const real = items.filter((it) => !/DELIVER|DEILVER|SURCH|FREIGHT|\bCHARGE|DEPOSIT|FUEL FEE/i.test(it.description) && !/\b24\s*-?\s*(PACK|PK)\b/i.test(it.description));
   items.length = 0; items.push(...real);
   if (!items.length) throw new Error('No items found in the report.');
   return { storeName, from, to, items };
