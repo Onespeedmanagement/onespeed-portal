@@ -61,7 +61,7 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
 
   return (
     <>
-      <TopBar subtitle={isAdmin ? 'Management Portal' : 'Store Portal'} who={`${me.email} · ${isAdmin ? 'Admin' : 'Manager'}`} />
+      <TopBar subtitle={isAdmin ? 'Management Portal' : 'Store Portal'} who={`${me.email} · ${isAdmin ? 'Admin' : 'Manager'}`} printLogo={false} />
       <ManagerNav active="/push" admin={isAdmin} />
       <main className="page" style={{ maxWidth: 1200 }}>
         <div className="row between">

@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   description: 'Reports, cash close-outs and bookkeeping for OneSpeed Management.',
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, title: 'OneSpeed', statusBarStyle: 'default' },
+  icons: { apple: '/icons/apple-touch-icon.png' },
 };
 
 export const viewport: Viewport = { themeColor: '#1f3d2b', width: 'device-width', initialScale: 1 };
