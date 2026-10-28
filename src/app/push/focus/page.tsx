@@ -5,15 +5,16 @@ import { PrintButton } from '../Forms';
 
 export const dynamic = 'force-dynamic';
 
-// One clean page for the break room / register: the manager's focus items
+// One clean page for the break room / register: the manager's focus items.
+// No prices or costs: the paper can end up where customers see it.
 export default async function FocusPrint({ searchParams }: { searchParams: Promise<{ store?: string }> }) {
   await requireRole('admin', 'manager');
   const sp = await searchParams;
   const supabase = await supabaseServer();
   const { data: stores } = await supabase.from('stores').select('id, name').eq('active', true).order('name');
   const store = stores?.find((s) => s.id === sp.store) ?? stores?.[0];
-  const { data } = store ? await supabase.from('unsold_items').select('sku, description, kind, stock, price').eq('business_id', store.id).eq('focus', true) : { data: [] };
-  const items = (data ?? []).map((i) => ({ ...i, price: i.price == null ? null : Number(i.price) })).sort((a, b) => String(a.kind).localeCompare(String(b.kind)) || a.description.localeCompare(b.description));
+  const { data } = store ? await supabase.from('unsold_items').select('sku, description, kind').eq('business_id', store.id).eq('focus', true) : { data: [] };
+  const items = (data ?? []).sort((a, b) => String(a.kind).localeCompare(String(b.kind)) || a.description.localeCompare(b.description));
   const kinds = [...new Set(items.map((i) => i.kind))];
   const day = new Date(`${todayNY()}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
   return (
@@ -32,7 +33,6 @@ export default async function FocusPrint({ searchParams }: { searchParams: Promi
               <tr key={i.sku} style={{ borderBottom: '1px solid #ddd' }}>
                 <td style={{ padding: '8px 4px', width: 28 }}>☐</td>
                 <td style={{ padding: '8px 4px' }}><strong>{i.description}</strong></td>
-                <td style={{ padding: '8px 4px', textAlign: 'right', whiteSpace: 'nowrap' }}>{i.price != null ? `$${i.price.toFixed(2)}` : ''}</td>
               </tr>
             ))}</tbody>
           </table>

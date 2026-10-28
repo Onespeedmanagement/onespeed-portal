@@ -51,13 +51,13 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
   );
   const Table = ({ rows }: { rows: Item[] }) => (
     <table className="num" style={{ width: '100%' }}>
-      <thead><tr><th>Item</th><th className="r">On shelf</th><th className="r">Price</th><th className="r">Tied up (cost)</th><th className="no-print" /></tr></thead>
+      <thead><tr><th>Item</th><th className="r">On shelf</th><th className="r no-print">Price</th><th className="r no-print">Tied up (cost)</th><th className="no-print" /></tr></thead>
       <tbody>{rows.map((i) => (
-        <tr key={i.sku} style={i.focus ? { background: '#f4f0e4' } : undefined}><td>{i.description}{newSkus.has(i.sku) && <span className="pill warn" style={{ marginLeft: 6 }} title="One of the most recently added SKUs: probably new, not dead stock">Likely new</span>}<span className="small muted"> · SKU {i.sku}</span></td><td className="r">{i.stock}</td><td className="r">{usd(i.price)}</td><td className="r">{usd(value(i), false)}</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
+        <tr key={i.sku} style={i.focus ? { background: '#f4f0e4' } : undefined}><td>{i.description}{newSkus.has(i.sku) && <span className="pill warn" style={{ marginLeft: 6 }} title="One of the most recently added SKUs: probably new, not dead stock">Likely new</span>}<span className="small muted"> · SKU {i.sku}</span></td><td className="r">{i.stock}</td><td className="r no-print">{usd(i.price)}</td><td className="r no-print">{usd(value(i), false)}</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
       ))}</tbody>
     </table>
   );
-  const focusText = `${store?.name ?? ''}: items to push this week\n` + focus.map((i, n) => `${n + 1}. ${i.description}, ${usd(i.price)}`).join('\n');
+  const focusText = `${store?.name ?? ''}: items to push this week\n` + focus.map((i, n) => `${n + 1}. ${i.description}`).join('\n');
 
   return (
     <>
@@ -99,7 +99,7 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
                   );
                 })}
               </div>
-              {!kind && <span className="small muted">{items.length} items with no sales · {usd(total, false)} tied up at cost. Pick a department to see its items and choose a few for staff to push.</span>}
+              {!kind && <span className="small muted no-print">{items.length} items with no sales · {usd(total, false)} tied up at cost. Pick a department to see its items and choose a few for staff to push.</span>}
             </section>
 
             {/* 2. The chosen department */}
@@ -137,11 +137,12 @@ export default async function PushPage({ searchParams }: { searchParams: Promise
                   </div>
                 )}
               </div>
+              {focus.length > 0 && <span className="small muted no-print">The printed, copied and emailed list shows item names only, with no price or cost, so it’s safe to leave where customers might see it.</span>}
               {focus.length === 0 ? <span className="small muted">Nothing picked yet. Items you mark with + Focus show up here, ready to print or send. The list stays when a new report is uploaded, and items that sell drop off.</span> : (
                 <details>
                   <summary className="small" style={{ cursor: 'pointer' }}>Show the {focus.length} items</summary>
                   <table className="num" style={{ width: '100%', marginTop: 6 }}><tbody>{focus.map((i) => (
-                    <tr key={i.sku}><td><strong>{i.description}</strong><span className="small muted"> · {i.kind}</span></td><td className="r">{usd(i.price)}</td><td className="r small muted">{i.stock} on shelf</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
+                    <tr key={i.sku}><td><strong>{i.description}</strong><span className="small muted"> · {i.kind}</span></td><td className="r no-print">{usd(i.price)}</td><td className="r small muted">{i.stock} on shelf</td><td className="r no-print"><FocusBtn i={i} /></td></tr>
                   ))}</tbody></table>
                 </details>
               )}
