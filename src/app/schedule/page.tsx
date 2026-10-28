@@ -5,6 +5,7 @@ import { ManagerNav } from '@/components/ManagerNav';
 import { todayNY } from '@/lib/dates';
 import { analyzeWeek, hourLabel, type DayHours, type ShiftRow } from '@/lib/schedule/analyze';
 import { ScheduleUpload } from './Forms';
+import { eventsByDay, mainEvent, measureEffects, KIND_LABEL, type LocalEvent, type DayEvent } from '@/lib/localEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,9 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   const me = await requireRole('admin', 'manager');
   const sp = await searchParams;
   const supabase = await supabaseServer();
-  const { data: stores } = await supabase.from('stores').select('id, name').eq('active', true).order('name');
+  let { data: stores } = await supabase.from('stores').select('id, name, ud_area').eq('active', true).order('name');
+  // (before the local-events update is run in Supabase there's no ud_area column yet)
+  if (!stores) stores = ((await supabase.from('stores').select('id, name').eq('active', true).order('name')).data ?? []).map((x) => ({ ...x, ud_area: false }));
   const store = stores?.find((s) => s.id === sp.store) ?? stores?.[0];
   const t = {
     high: Math.min(200, Math.max(5, Number(sp.high) || 30)),
@@ -35,13 +38,46 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   week = week ?? monday(todayNY());
   const dates = Array.from({ length: 7 }, (_, i) => addD(week!, i));
 
-  const [{ data: shiftRows }, { data: hist }] = store ? await Promise.all([
+  // A year+ of daily sales: to measure how game days, holidays, breaks etc. moved sales here before
+  const since = addD(week, -420), until = addD(week, 48);
+  const [{ data: shiftRows }, { data: hist }, { data: evRows }] = store ? await Promise.all([
     supabase.from('schedule_shifts').select('shift_date, employee, position, start_min, end_min, rate').eq('business_id', store.id).gte('shift_date', dates[0]).lte('shift_date', dates[6]),
-    supabase.rpc('store_hourly', { b: store.id, since: addD(week, -63) }),
-  ]) : [{ data: [] }, { data: [] }];
+    supabase.rpc('store_hourly', { b: store.id, since }),
+    supabase.from('local_events').select('id, start_date, end_date, name, kind, detail, scope, source').lte('start_date', until).gte('end_date', since),
+  ]) : [{ data: [] }, { data: [] }, { data: [] }];
   const shifts = ((shiftRows ?? []) as ShiftRow[]).map((s) => ({ ...s, rate: s.rate == null ? null : Number(s.rate) }));
-  const history = ((hist ?? []) as DayHours[]).map((d) => ({ ...d, total_sales: d.total_sales == null ? null : Number(d.total_sales) }));
-  const a = analyzeWeek(dates, shifts, history, t);
+  const allDays = ((hist ?? []) as DayHours[]).map((d) => ({ ...d, total_sales: d.total_sales == null ? null : Number(d.total_sales) }));
+  const history = allDays.filter((d) => d.business_date >= addD(week, -63));
+
+  const byDay = eventsByDay((evRows ?? []) as LocalEvent[], !!store?.ud_area, since, until);
+  const effectOf = measureEffects(new Map(allDays.filter((d) => d.total_sales).map((d) => [d.business_date, d.total_sales!])), byDay, todayNY());
+  const factors = new Map<string, number>();
+  for (const d of dates) { const ev = mainEvent(byDay.get(d)); if (ev) factors.set(d, effectOf(ev).factor); }
+  const skip = new Set([...byDay].filter(([, l]) => mainEvent(l)).map(([d]) => d));
+  const a = analyzeWeek(dates, shifts, history, t, factors, skip);
+
+  // This week's events (one line per event, with its days), and the big ones coming up after it
+  const group = (from: string, to: string, mainOnly: boolean) => {
+    const m = new Map<string, { ev: DayEvent; first: string; last: string }>();
+    for (const [d, list] of [...byDay].filter(([d]) => d >= from && d <= to).sort(([x], [y]) => x.localeCompare(y))) {
+      for (const ev of list) {
+        if (mainOnly && (ev.kind === 'note' || ev.kind === 'holiday')) continue;
+        const g = m.get(ev.name); if (g) g.last = d; else m.set(ev.name, { ev, first: d, last: d });
+      }
+    }
+    return [...m.values()];
+  };
+  const thisWeek = group(dates[0], dates[6], false);
+  const comingUp = group(addD(dates[6], 1), addD(dates[6], 35), true);
+  const span = (x: { first: string; last: string }) => (x.first === x.last ? short(x.first) : `${short(x.first)} – ${short(x.last)}`);
+  const effectText = (ev: DayEvent) => {
+    if (ev.kind === 'note') return 'Good to know';
+    const e = effectOf(ev);
+    const pct = `${e.pct > 0 ? '+' : ''}${e.pct}%`;
+    if (e.measured) return `${e.pct === 0 ? 'About a normal day' : `${pct} sales`} here on past ${ev.kind.startsWith('holiday') ? `${ev.name}s` : 'days like this'} (${e.samples} day${e.samples === 1 ? '' : 's'} measured)`;
+    return e.pct === 0 ? 'No change expected' : `Expect about ${pct} (starting guess until this store has history for it)`;
+  };
+  const adjusted = a.days.some((d) => d.source === 'usual' && d.factor !== 1);
   const daysWithHourly = history.filter((d) => d.hourly?.length).length;
   const totLabor = a.days.reduce((s, d) => s + d.laborCost, 0);
   const totSales = a.days.reduce((s, d) => s + (d.sales ?? 0), 0);
@@ -73,6 +109,22 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
 
         {sp.saved && <div className="notice good">✓ Saved {sp.saved} shifts.{sp.open ? ` ${sp.open} open shift(s) with nobody assigned were left out.` : ''}</div>}
         {daysWithHourly < 7 && <div className="notice warn">Customer counts by hour come from the nightly POS reports and are saved from Oct 27 on. With {daysWithHourly} day{daysWithHourly === 1 ? '' : 's'} so far, “usual” traffic is rough; it sharpens as each weekday builds up a few weeks of history.</div>}
+
+        {thisWeek.length > 0 && (
+          <section className="card" style={{ borderLeft: '4px solid var(--green)' }}>
+            <h2 style={{ marginBottom: 6 }}>Happening this week</h2>
+            <table className="small" style={{ width: '100%' }}><tbody>
+              {thisWeek.map(({ ev, first, last }) => (
+                <tr key={ev.name}>
+                  <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}><strong>{span({ first, last })}</strong></td>
+                  <td><strong>{ev.name}</strong> <span className="pill" style={{ marginLeft: 4 }}>{KIND_LABEL[ev.kind]}</span>{ev.detail && <span className="muted"> · {ev.detail}</span>}
+                    <div style={{ color: ev.kind === 'note' ? 'var(--muted)' : effectOf(ev).factor > 1 ? 'var(--green)' : effectOf(ev).factor < 1 ? 'var(--warn)' : 'var(--muted)' }}>{effectText(ev)}</div></td>
+                </tr>
+              ))}
+            </tbody></table>
+            {adjusted && <div className="small muted" style={{ marginTop: 6 }}>The hour-by-hour chart below already raises or lowers the usual customer counts for these days, so the red and amber boxes account for them.</div>}
+          </section>
+        )}
 
         {shifts.length === 0 ? (
           <div className="notice">No schedule uploaded for this week yet.</div>
@@ -108,7 +160,8 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
                 <tbody>
                   {a.days.map((d) => (
                     <tr key={d.date}>
-                      <td style={{ whiteSpace: 'nowrap' }}><strong>{short(d.date)}</strong><div className="small muted">{d.source === 'actual' ? 'actual' : d.source === 'usual' ? `usual (${d.basedOn} day${d.basedOn === 1 ? '' : 's'})` : 'no history'}</div></td>
+                      <td style={{ whiteSpace: 'nowrap' }}><strong>{short(d.date)}</strong><div className="small muted">{d.source === 'actual' ? 'actual' : d.source === 'usual' ? `usual (${d.basedOn} day${d.basedOn === 1 ? '' : 's'})${d.factor !== 1 ? ` ${d.factor > 1 ? '+' : ''}${Math.round((d.factor - 1) * 100)}%` : ''}` : 'no history'}</div>
+                        {(() => { const ev = mainEvent(byDay.get(d.date)) ?? byDay.get(d.date)?.[0]; return ev ? <div className="small" style={{ color: 'var(--green)', maxWidth: 170, whiteSpace: 'normal', fontWeight: 600 }}>{ev.name}</div> : null; })()}</td>
                       {d.cells.map((c) => (
                         <td key={c.hour} className="r small" style={{ background: COLORS[c.status], borderRadius: 4, padding: '4px 6px' }} title={c.sales != null ? `Sales ${usd(c.sales)} · labor ${usd(c.laborCost)}` : ''}>
                           {c.staff || c.customers ? <><strong>{c.staff}</strong>/{c.customers ?? '–'}</> : ''}
@@ -133,6 +186,18 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
             </section>
           </>
         )}
+
+        <section className="card">
+          <div className="row between"><h2 style={{ marginBottom: 6 }}>Coming up in the next 5 weeks</h2>{isAdmin && <a className="small" href="/schedule/events">Manage local events</a>}</div>
+          {comingUp.length === 0 ? <span className="small muted">Nothing special on the calendar.</span> : (
+            <table className="small" style={{ width: '100%' }}><tbody>
+              {comingUp.map(({ ev, first, last }) => (
+                <tr key={ev.name}><td style={{ whiteSpace: 'nowrap' }}><a href={qs({ week: monday(first) })}>{span({ first, last })}</a></td><td><strong>{ev.name}</strong>{ev.detail && <span className="muted"> · {ev.detail}</span>}</td><td className="muted">{effectText(ev)}</td></tr>
+              ))}
+            </tbody></table>
+          )}
+          <div className="small muted" style={{ marginTop: 6 }}>{store?.ud_area ? 'Includes University of Delaware dates (academic calendar, home football games, Family Weekend, Homecoming) and holidays.' : 'Holidays only: this store isn’t set to get University of Delaware dates.'}</div>
+        </section>
 
         <form method="get" className="card row" style={{ alignItems: 'flex-end' }}>
           {store && <input type="hidden" name="store" value={store.id} />}

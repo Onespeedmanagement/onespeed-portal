@@ -6,7 +6,7 @@ export type DayHours = { business_date: string; total_sales: number | null; tran
 export type Targets = { high: number; low: number; nightMin: number };   // customers per person per hour; people kept on after 9pm
 
 export type Cell = { hour: number; staff: number; customers: number | null; sales: number | null; laborCost: number; perPerson: number | null; status: 'under' | 'over' | 'ok' | 'closed' | 'unknown' };
-export type Day = { date: string; weekday: string; source: 'actual' | 'usual' | 'none'; basedOn: number; cells: Cell[]; laborHours: number; laborCost: number; sales: number | null; laborPct: number | null; people: string[] };
+export type Day = { date: string; weekday: string; source: 'actual' | 'usual' | 'none'; basedOn: number; factor: number; cells: Cell[]; laborHours: number; laborCost: number; sales: number | null; laborPct: number | null; people: string[] };
 export type Suggestion = { date: string; kind: 'under' | 'over'; from: number; to: number; text: string; saving?: number };
 
 const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -15,16 +15,20 @@ export const hourLabel = (h: number) => { const x = h % 24; return `${x % 12 ===
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 // Usual customers and sales for each hour of a weekday, from past days
-function usual(history: DayHours[], weekday: number) {
-  const same = history.filter((d) => d.hourly?.length && weekdayOf(d.business_date) === weekday);
-  const pool = same.length ? same : history.filter((d) => d.hourly?.length);
+// (special days such as home games and holidays are left out so they don't skew the normal day)
+function usual(history: DayHours[], weekday: number, skip: Set<string>) {
+  const normal = history.filter((d) => d.hourly?.length && !skip.has(d.business_date));
+  const all = normal.length ? normal : history.filter((d) => d.hourly?.length);
+  const same = all.filter((d) => weekdayOf(d.business_date) === weekday);
+  const pool = same.length ? same : all;
   const by = new Map<number, { c: number; s: number }>();
   for (const d of pool) for (const h of d.hourly!) { const v = by.get(h.hour) ?? { c: 0, s: 0 }; v.c += h.count; v.s += h.amount; by.set(h.hour, v); }
   const n = pool.length;
   return { n, sameDay: same.length > 0, hours: new Map([...by].map(([h, v]) => [h, { count: v.c / n, amount: v.s / n }])) };
 }
 
-export function analyzeWeek(dates: string[], shifts: ShiftRow[], history: DayHours[], t: Targets) {
+// factors: expected traffic vs a normal day for upcoming special days (1.2 = 20% busier); skip: special days in the history
+export function analyzeWeek(dates: string[], shifts: ShiftRow[], history: DayHours[], t: Targets, factors = new Map<string, number>(), skip = new Set<string>()) {
   const openHours = new Set<number>();
   for (const d of history) for (const h of d.hourly ?? []) if (h.count > 0) openHours.add(h.hour);
   for (const s of shifts) for (let m = s.start_min; m < s.end_min; m += 60) openHours.add(Math.floor(m / 60) % 24);
@@ -34,8 +38,10 @@ export function analyzeWeek(dates: string[], shifts: ShiftRow[], history: DayHou
   const days: Day[] = dates.map((date) => {
     const mine = shifts.filter((s) => s.shift_date === date);
     const actual = history.find((d) => d.business_date === date && d.hourly?.length);
-    const u = actual ? null : usual(history.filter((d) => d.business_date < date), weekdayOf(date));
-    const traffic = actual ? new Map(actual.hourly!.map((h) => [h.hour, { count: h.count, amount: h.amount }])) : u!.hours;
+    const u = actual ? null : usual(history.filter((d) => d.business_date < date), weekdayOf(date), skip);
+    const factor = actual ? 1 : factors.get(date) ?? 1;
+    const traffic = actual ? new Map(actual.hourly!.map((h) => [h.hour, { count: h.count, amount: h.amount }]))
+      : new Map([...u!.hours].map(([h, v]) => [h, { count: v.count * factor, amount: v.amount * factor }]));
     const cells: Cell[] = hours.map((hour) => {
       // people on the floor this hour (a shift covering half the hour counts as half)
       let staff = 0, laborCost = 0;
@@ -58,8 +64,8 @@ export function analyzeWeek(dates: string[], shifts: ShiftRow[], history: DayHou
     });
     const laborHours = mine.reduce((a, s) => a + (s.end_min - s.start_min) / 60, 0);
     const laborCost = mine.reduce((a, s) => a + ((s.end_min - s.start_min) / 60) * (s.rate ?? 0), 0);
-    const sales = actual ? actual.total_sales : u && u.n ? [...u.hours.values()].reduce((a, v) => a + v.amount, 0) : null;
-    return { date, weekday: WD[weekdayOf(date)], source: actual ? 'actual' : u && u.n ? 'usual' : 'none', basedOn: actual ? 1 : u?.n ?? 0, cells, laborHours, laborCost,
+    const sales = actual ? actual.total_sales : u && u.n ? [...traffic.values()].reduce((a, v) => a + v.amount, 0) : null;
+    return { date, weekday: WD[weekdayOf(date)], source: actual ? 'actual' : u && u.n ? 'usual' : 'none', basedOn: actual ? 1 : u?.n ?? 0, factor, cells, laborHours, laborCost,
       sales, laborPct: sales ? (laborCost / sales) * 100 : null, people: [...new Set(mine.map((s) => s.employee))] };
   });
 
