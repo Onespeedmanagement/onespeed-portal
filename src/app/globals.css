@@ -85,3 +85,26 @@ td.r, th.r { text-align: right; }
   body { background: #fff; }
   .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
 }
+
+/* Menu bars: rounded "bubble" links */
+.navbar {
+  background: #2c5240; padding: 10px clamp(16px, 3vw, 40px);
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+.navbar .navgroup { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.navbar .navsep { width: 1px; align-self: stretch; margin: 4px 6px; background: rgba(233, 227, 210, 0.25); }
+.navbar a.navpill {
+  display: inline-flex; align-items: center; min-height: 34px; padding: 6px 14px; border-radius: 999px;
+  font-size: 14px; color: #e9e3d2; text-decoration: none; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.10);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.navbar a.navpill:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.navbar a.navpill:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.navbar a.navpill.active { background: var(--gold); border-color: var(--gold); color: #1f3d2b; font-weight: 600; }
+.navbar a.navpill.back { background: transparent; border-color: rgba(233, 227, 210, 0.35); }
+@media (max-width: 640px) {
+  .navbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .navbar .navgroup { flex-wrap: nowrap; }
+}

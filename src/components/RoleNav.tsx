@@ -1,18 +1,12 @@
 import type { Role } from '@/lib/auth';
 import { AdminNav } from './AdminNav';
 import { BookkeeperNav } from './BookkeeperNav';
+import { NavBar, type NavLink } from './NavBar';
 
 // Goddard pages get their own bar, so schools stay separate from the liquor stores
 function GoddardNav({ active, withPortfolio, withContracts }: { active: string; withPortfolio: boolean; withContracts: boolean }) {
-  const links = [...(withPortfolio ? [['/portfolio', '← Portfolio']] : []), ['/goddard', 'Goddard Schools'], ['/goddard/upload', 'Upload financials'], ...(withContracts ? [['/goddard/contracts', 'Contracts']] : [])];
-  return (
-    <nav aria-label="Goddard" style={{ background: '#2c5240', padding: '0 clamp(16px, 3vw, 40px)', display: 'flex', gap: 22, flexWrap: 'wrap' }}>
-      {links.map(([href, label]) => (
-        <a key={href} href={href} style={{ color: href === active ? '#fff' : '#e9e3d2', textDecoration: 'none', fontSize: 14, padding: '12px 2px',
-          borderBottom: `3px solid ${href === active ? 'var(--gold)' : 'transparent'}` }}>{label}</a>
-      ))}
-    </nav>
-  );
+  const main: NavLink[] = [['/goddard', 'Goddard Schools'], ['/goddard/upload', 'Upload financials'], ...(withContracts ? [['/goddard/contracts', 'Contracts'] as NavLink] : [])];
+  return <NavBar label="Goddard" active={active} groups={withPortfolio ? [[['/portfolio', '← Portfolio']], main] : [main]} />;
 }
 
 export function RoleNav({ role, active }: { role: Role; active: string }) {
