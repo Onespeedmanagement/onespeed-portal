@@ -3,7 +3,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { TopBar } from '@/components/TopBar';
 import { AdminNav } from '@/components/AdminNav';
 import { UserForm } from './UserForm';
-import { employeeAction, setActive } from './actions';
+import { deleteUser, employeeAction, setActive } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +11,7 @@ const ROLE: Record<string, [string, string]> = {
   admin: ['Admin', 'var(--green)'], bookkeeper: ['Bookkeeper', '#3b6450'], manager: ['Store manager', '#8a6a1e'], investor: ['Investor', '#2b3e66'], school_bookkeeper: ['Goddard bookkeeper', '#5b4a7a'], school_admin: ['Goddard admin', '#3d3566'],
 };
 
-export default async function UsersPage({ searchParams }: { searchParams: Promise<{ edit?: string; saved?: string; emp_store?: string }> }) {
+export default async function UsersPage({ searchParams }: { searchParams: Promise<{ edit?: string; saved?: string; emp_store?: string; del?: string; deleted?: string; err?: string }> }) {
   const me = await requireRole('admin');
   const sp = await searchParams;
   const supabase = await supabaseServer();
@@ -39,6 +39,21 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           <h1>Users &amp; employees</h1>
         </div>
         {sp.saved && <div className="notice good">✓ Saved {sp.saved}.</div>}
+        {sp.deleted && <div className="notice good">✓ Deleted {sp.deleted}. They can no longer sign in.</div>}
+        {sp.err && <div className="notice bad">{sp.err}</div>}
+        {(() => {
+          const u = users?.find((x) => x.email === sp.del && x.email !== me.email);
+          if (!u) return null;
+          return (
+            <div className="notice bad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <span><strong>Delete {u.display_name ? `${u.display_name} (${u.email})` : u.email}?</strong> They’ll be removed from the list and lose all access. Anything they already entered (close-outs, notes) stays. This can’t be undone; to bring them back you’d add them again.</span>
+              <div className="row">
+                <form action={deleteUser}><input type="hidden" name="email" value={u.email} /><button className="btn danger" type="submit">Yes, delete</button></form>
+                <a className="btn secondary" href="/admin/users" style={{ textDecoration: 'none' }}>Cancel</a>
+              </div>
+            </div>
+          );
+        })()}
 
         <section className="card scroll">
           <h2 style={{ marginBottom: 10 }}>Who can sign in</h2>
@@ -63,6 +78,9 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                           <input type="hidden" name="email" value={u.email} /><input type="hidden" name="active" value={String(!u.active)} />
                           <button className="btn secondary" type="submit" style={{ minHeight: 36, padding: '6px 12px' }}>{u.active ? 'Turn off' : 'Turn on'}</button>
                         </form>
+                      )}{' '}
+                      {u.email !== me.email && (
+                        <a href={`/admin/users?del=${encodeURIComponent(u.email)}`} className="btn danger" style={{ textDecoration: 'none', minHeight: 36, padding: '6px 12px' }}>Delete</a>
                       )}
                     </td>
                   </tr>

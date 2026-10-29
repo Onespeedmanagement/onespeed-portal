@@ -63,3 +63,16 @@ export async function employeeAction(form: FormData) {
   }
   revalidatePath('/admin/users');
 }
+
+// Permanently remove a sign-in (their store access goes with it). Their past entries stay.
+export async function deleteUser(form: FormData) {
+  const me = await requireRole('admin');
+  const email = String(form.get('email') ?? '');
+  if (!email || email === me.email) redirect('/admin/users');
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from('app_users').delete().eq('email', email);
+  if (error) redirect('/admin/users?err=' + encodeURIComponent(`Couldn’t delete ${email}: ${error.message}`));
+  await supabase.from('audit_log').insert({ action: 'user.deleted', details: { email } });
+  revalidatePath('/admin/users');
+  redirect('/admin/users?deleted=' + encodeURIComponent(email));
+}
